@@ -10,6 +10,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using GridcoinDPOR.Util;
+using Serilog;
+using Serilog.Sinks.RollingFile;
+using Serilog.Core;
+using Serilog.Events;
 
 namespace GridcoinDPOR
 {
@@ -17,38 +21,94 @@ namespace GridcoinDPOR
     {
         static void Main(string[] args)
         {
+            // -gridcoindatadir=C:\\Example -syncdpor2=<XML>DATA</XML>
+            // -gridcoindatadir=C:\\Example -syncdpor2 -debug
+            // -gridcoindatadir=C:\\Example -neuralhash
+            // -gridcoindatadir=C:\\Example -neuralcontract
+
             try
             {
-                string directory = "";
-                string command = "";
-                string message = "";
+                string gridcoinDataDir = "";
+                string commandName = "";
+                string commandOption = "";
+                bool debug = false;
 
                 foreach(var arg in args)
                 {
-                    var split = arg.Split(new char[] {'='}, StringSplitOptions.RemoveEmptyEntries);
-
-                    switch(split[0])
+                    if (arg.StartsWith("-gridcoindatadir"))
                     {
-                        case "-d":
-                            directory = split[1];
-                            break;
-                        case "-c":
-                            command = split[1];
-                            break;
-                        case "-m":
-                            message = split[1];
-                            break;
+                        gridcoinDataDir = arg.Replace("-gridcoindatadir=", "");
                     }
+                    if (arg.StartsWith("-syncdpor2"))
+                    {
+                        commandName = "syncdpor2";
+                        commandOption = arg.Replace("-syncdpor2", "").Replace("=", "");
+                    }
+                    if (arg.StartsWith("-debug"))
+                    {
+                        debug = true;
+                    }
+                }
+
+                // override commandOption when debug is set
+                if (debug && commandName == "syncdpor2")
+                {
+                    commandOption = File.ReadAllText("syncdpor.dat");    
+                }
+
+                if (string.IsNullOrEmpty(gridcoinDataDir))
+                {
+                    Console.WriteLine("ERROR: You must specify the path to the Gridcoin Data Directory with the -gridcoindatadir option. e.g -gridcoindatadir=[PATH]");
+                    Environment.Exit(-1);
+                }
+                
+                var gridcoinConf = Path.Combine(gridcoinDataDir, "gridcoinresearch.conf");
+                if (!File.Exists(gridcoinConf))
+                {
+                    Console.WriteLine("ERROR: Could not find the gridcoinresearch.conf file in the directory specified.");
+                    Environment.Exit(-1);
+                }
+
+                if (string.IsNullOrEmpty(commandName))
+                {
+                    Console.WriteLine("ERROR: You must specify a command to run. Available commands are -syncdpor2, -neuralcontract or -neuralhash");
+                    Environment.Exit(-1);
+                }
+
+                var logPath = Path.Combine(gridcoinDataDir, "DPOR", "logs", "debug-{Date}.log");
+                var levelSwitch = new LoggingLevelSwitch();
+                var logger = new LoggerConfiguration().MinimumLevel.ControlledBy(levelSwitch)
+                                                   .WriteTo.RollingFile(logPath)
+                                                   .CreateLogger();
+                                                
+                // assign logger to classes we want logging in
+                // TODO: probably a better way of handling the logging.
+                WebUtil.Logger = logger;
+                                                   
+                logger.ForContext<Program>().Information("Logging started at INFORMATION level");
+                
+                // should we switch logging to Verbose?
+                var conf = File.ReadAllText(gridcoinConf);
+                if (conf.Contains("debug2=true"))
+                {
+                    levelSwitch.MinimumLevel = LogEventLevel.Verbose;
+                    logger.Information("debug2=true detected in gridcoinresearch.conf logging changed to VERBOSE");
                 }
 
                 Task.Run(async () =>
                 {
                     // Do any async anything you need here without worry
-                    switch(command)
+                    switch(commandName)
                     {
                         case "syncdpor2":
                             Console.Write("1");
-                            await Service.SyncDPOR2(directory);
+                            logger.ForContext<Program>().Information("SyncDPOR2 started");
+                            await Service.SyncDPOR2(gridcoinDataDir, commandOption);
+                            logger.ForContext<Program>().Information("SyncDPOR2 finished");
+                            break;
+                        default:
+                            Console.WriteLine("ERROR: Invalid command specified. Available commands are -syncdpor2, -neuralcontract or -neuralhash");
+                            Environment.Exit(-1);
                             break;
                     }
 
@@ -56,7 +116,8 @@ namespace GridcoinDPOR
             }
             catch(Exception ex)
             {
-                Console.WriteLine(ex);
+                Console.WriteLine("ERROR: {0}", ex);
+                Environment.Exit(-1);
             }
         }
     }

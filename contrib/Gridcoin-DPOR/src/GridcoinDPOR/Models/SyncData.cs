@@ -23,14 +23,11 @@ namespace GridcoinDPOR.Models
         public string BlockNumber { get; set; }
         public string PrimaryCPID { get; set; }
 
-        public static async Task<SyncData> LoadAsync(string filePath)
+        public static SyncData Parse(string syndDataXml)
         {
-            // TODO: Must be a better way of storing/retrieving this structure?
-            var syncDataFile = await FileUtil.ReadAllTextAsync(filePath);
-
             // GET WHITELIST DATA
             var whitelist = new List<Whitelist>();
-            var whitelistXml = ExtractXML(syncDataFile, "<WHITELIST>");
+            var whitelistXml = ExtractXML(syndDataXml, "<WHITELIST>");
             var whitelistRows = whitelistXml.Split(new string[] {"<ROW>"}, StringSplitOptions.RemoveEmptyEntries);
 
             foreach(var row in whitelistRows)
@@ -45,7 +42,7 @@ namespace GridcoinDPOR.Models
 
             // GET CPID DATA
             var cpidData = new List<CpidData>();
-            var cpidDataXml = ExtractXML(syncDataFile, "<CPIDDATA>");
+            var cpidDataXml = ExtractXML(syndDataXml, "<CPIDDATA>");
             var cpidDataRows = cpidDataXml.Split(new string[] {"<ROW>"}, StringSplitOptions.RemoveEmptyEntries);
 
             // TODO: Not sure what this data is?
@@ -75,11 +72,11 @@ namespace GridcoinDPOR.Models
             {
                 Whitelist = whitelist,
                 CpidData = cpidData,
-                Age = ExtractXML(syncDataFile, "<AGE>"),
-                QuorumHash = ExtractXML(syncDataFile, "<HASH>"),
-                TimeStamp = ExtractXML(syncDataFile, "<TIMESTAMP>"),
-                BlockNumber = ExtractXML(syncDataFile, "<BLOCKNUMBER>"),
-                PrimaryCPID = ExtractXML(syncDataFile, "<PRIMARYCPID>"),
+                Age = ExtractXML(syndDataXml, "<AGE>"),
+                QuorumHash = ExtractXML(syndDataXml, "<HASH>"),
+                TimeStamp = ExtractXML(syndDataXml, "<TIMESTAMP>"),
+                BlockNumber = ExtractXML(syndDataXml, "<BLOCKNUMBER>"),
+                PrimaryCPID = ExtractXML(syndDataXml, "<PRIMARYCPID>"),
             };
 
             return syncData;

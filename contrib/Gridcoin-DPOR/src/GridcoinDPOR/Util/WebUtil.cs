@@ -9,17 +9,29 @@ using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using Serilog;
+using Serilog.Core;
+using GridcoinDPOR.Logging;
 
 namespace GridcoinDPOR.Util
 {
-    public class WebUtil
+    public static class WebUtil
     {
+        private static ILogger _logger = new NullLogger();
+        public static ILogger Logger 
+        { 
+            get { return _logger; } 
+            set { _logger = value;}
+        }
+
         private static HttpClient _httpClient = new HttpClient();
 
-        public static async Task<bool> DownloadFile(string requestUri, string filename)
+        public static async Task<bool> DownloadFile(string requestUri, string filePath)
         {
             try
             {
+                var filename = Path.GetFileName(filePath);
+
                 using(var response = await _httpClient.GetAsync(
                     requestUri: requestUri, 
                     completionOption: HttpCompletionOption.ResponseHeadersRead
@@ -27,45 +39,48 @@ namespace GridcoinDPOR.Util
                 {
                     if (!response.IsSuccessStatusCode)
                     {
-                        // TODO: Log failure
+                        _logger.ForContext(nameof(WebUtil)).Warning("Invalid status code detected when trying to download file: {0}", requestUri);
                         return false;
                     }
 
                     // only download the full file if it's newer than the local file.
                     DateTime localFileLastModified = DateTime.MinValue;
-                    if (File.Exists(filename))
+                    if (File.Exists(filePath))
                     {
-                        localFileLastModified = File.GetLastAccessTimeUtc(filename);
+                        localFileLastModified = File.GetLastAccessTimeUtc(filePath);
+                        _logger.ForContext(nameof(WebUtil)).Debug("Last-Modified of local file {0} is {1}", filename, localFileLastModified);
                     }
 
                     var remoteFileLastModified = response.Content.Headers.LastModified;
-                    Console.WriteLine("Last-Modified: {0}", remoteFileLastModified);
+                    _logger.ForContext(nameof(WebUtil)).Debug("Last-Modified of remote file {0} is {1}", requestUri, remoteFileLastModified);
+
                     
                     if (localFileLastModified < remoteFileLastModified)
                     {
-                        Console.WriteLine("Local {0} is out of date", filename);
-                        using(var fileStream = new FileStream(filename, FileMode.Create, FileAccess.Write, FileShare.None))
+                        _logger.ForContext(nameof(WebUtil)).Information("Local file {0} is older than remote file {1}, downloading file...", filename, requestUri);
+                        using(var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None))
                         {
                             await response.Content.CopyToAsync(fileStream);
                         }
 
                         if (remoteFileLastModified.HasValue)
                         {
-                            File.SetLastAccessTimeUtc(filename, remoteFileLastModified.Value.UtcDateTime);
+                            File.SetLastAccessTimeUtc(filePath, remoteFileLastModified.Value.UtcDateTime);
+                            _logger.ForContext(nameof(WebUtil)).Debug("Assigned Last-Modified to local file {0}", remoteFileLastModified.Value.UtcDateTime);
                         }
 
                         return true;
                     }
                     else
                     {
-                        Console.WriteLine("Local {0} is the latest", filename);
+                         _logger.ForContext(nameof(WebUtil)).Information("Skipping download as local file {0} is the latest", filename);
                         return true;
                     }
                 }   
             }
             catch(Exception ex)
             {
-                Console.WriteLine("Failed to download file: {0}", ex);
+                _logger.ForContext(nameof(WebUtil)).Error("{0}", ex);
                 return false;
             }
         }

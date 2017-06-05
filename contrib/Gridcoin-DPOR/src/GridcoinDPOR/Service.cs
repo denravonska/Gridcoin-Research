@@ -6,16 +6,25 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
+using GridcoinDPOR.Logging;
 using GridcoinDPOR.Models;
 using GridcoinDPOR.Util;
+using Serilog;
 
 namespace GridcoinDPOR
 {
     public static class Service
     {
-        public static async Task<bool> SyncDPOR2(string dataDirectory)
+        private static ILogger _logger = new NullLogger();
+        public static ILogger Logger 
+        { 
+            get { return _logger; } 
+            set { _logger = value;}
+        }
+        
+        public static async Task<bool> SyncDPOR2(string dataDirectory, string syncDataXml)
         {
-            var dporDir = Path.Combine(dataDirectory, "NeuralNetwork2");
+            var dporDir = Path.Combine(dataDirectory, "DPOR");
             var syncFile = Path.Combine(dporDir, "syncing.lck");
             
             if (!Directory.Exists(dporDir)) 
@@ -26,13 +35,7 @@ namespace GridcoinDPOR
             try
             {
                 // EXTRACT LIST OF WHITELISTED PROJECTS FROM XML DATA
-                var syncDataFile = Path.Combine(dataDirectory, "syncdpor.dat");
-                if (!File.Exists(syncDataFile))
-                {
-                    throw new Exception("Could not load syncdpor.dat");
-                }
-
-                var syncData = await SyncData.LoadAsync(syncDataFile);
+                var syncData = SyncData.Parse(syncDataXml);
                 var users = new List<User>();
                 
                 // DOWNLOAD AND EXTRACT FILES
@@ -55,7 +58,7 @@ namespace GridcoinDPOR
                         }
                         else
                         {
-                            Console.WriteLine("Failed to download team file from URL: {0}", teamUrl);
+                            _logger.ForContext(nameof(Service)).Information("Failed to download team file from URL: {0}", teamUrl);
                         }
                     }
 
@@ -76,7 +79,7 @@ namespace GridcoinDPOR
                         }
                         else
                         {
-                            Console.WriteLine("Failed to download team file from URL: {0}", userUrl);
+                            _logger.ForContext(nameof(Service)).Information("Failed to download user file from URL: {0}", userUrl);
                         }
                     }
                 }
@@ -88,7 +91,7 @@ namespace GridcoinDPOR
             }
             catch(Exception ex)
             {
-                Console.WriteLine(ex);
+                _logger.ForContext(nameof(Service)).Fatal("SyncDPOR2 command failed with exception {0}", ex);
                 return false;
             }
         }

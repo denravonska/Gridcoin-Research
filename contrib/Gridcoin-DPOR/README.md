@@ -1,9 +1,8 @@
 # Gridcoin DPOR
-A work-in-progress port of the VB.NET Neural Network to .NET Core. The aim of this project is to create a cross-platform version of the existing Neural Network with some added performance improvements and the ability to remove the Gridcoin Team Requirment.
+A work-in-progress port of the VB.NET Neural Network to .NET Core. The aim of this project is to create a cross-platform version of the existing Neural Network with some added performance improvements and the ability to remove the Gridcoin Team Requirement.
 
 Still TODO: 
-- Add the NLog logging framework and logging throughout the code (with extra debug logging when debug2=true).
-- Calculate mags and store in SQlite database using Dapper mini ORM.
+- Calculate mags and store in SQLite database using Dapper mini ORM.
 - Implement `GetNeuralContract()`
 - Implement `GetNeuralHash()`
 - Lots of testing.
@@ -11,7 +10,7 @@ Still TODO:
 ## Improvements
 - Code has been stripped back from what is in the original .NET repo.
 - The remote xml files are only downloaded if they have been changed putting less load on the BOINC project servers.
-- The data is now stored in a SQlite database instead of flat files so that the Qt UI can access it.
+- The data is now stored in a SQLite database instead of flat files so that the Qt UI can access it.
 
 ## Commands available
 Assuming you have installed .NET Core on your platform and built the source code you should be able to run the following commands at the command prompt or terminal.
@@ -20,10 +19,10 @@ Assuming you have installed .NET Core on your platform and built the source code
 This command downloads all the BOINC project files and calculates magnitudes storing them in the **/GridcoinResearch/DPOR/db.sqlite** folder.
 
 ```bash
-dotnet GridcoinDPOR.dll -d=\"C:\\Users\\3ullShark\\AppData\\Roaming\\GridcoinResearch\" -c=syncdpor2
+dotnet GridcoinDPOR.dll -gridcoindatadir=C:\\Users\\3ullShark\\AppData\\Roaming\\GridcoinResearch -syncdpor2=SYNCDATAXML
 ```
 
-TODO: add `-o=noteam` option to the `syncdpor` command to remove the team requirment.
+TODO: add `-noteam` option to the `-syncdpor2` command to remove the team requirement.
 
 ### NeuralHash
 This command gets the neural hash of the downloaded magnitude data.
@@ -31,7 +30,7 @@ This command gets the neural hash of the downloaded magnitude data.
 TODO: Still not implemented
 
 ### NeuralContract
-This command gets the neural contract of the downloaded magnitued data.
+This command gets the neural contract of the downloaded magnitude data.
 
 TODO: Still not implemented
 
@@ -57,12 +56,12 @@ In order to step through the code with the deubugger in Visual Studio Code you w
 **Step 1:** Modify the **launch.json** file located in the **.vscode** directory so that the `args` field has the path to your GridcoinResearch data folder and the command you want to run. For example. 
 
 ```json
-"args": ["-d=C:\Users\3ullShark\AppData\Roaming\GridcoinResearch -c=syncdpor"]
+"args": ["-gridcoindatadir=C:\\Users\\3ullShark\\AppData\\Roaming\\GridcoinResearch", "-syncdpor2", "-debug"],
 ```
 
-**Step 2:** Copy the **syncdpor.dat** file located in **src/GridcoinDPOR** into your GridcoinResrach folder.
+*Note: when using the `-debug` switch with the `-syncdpor2` command `Program.cs` will load the sample sync data XML file that is currently passed to the VB.NET Code in the current implementation. This file is located in **/src/GridcoinDPOR/syncdpor.dat**.* 
 
-**Step 3:** Now put a breakpoint in `Program.cs` or anyware else in the code and press <kbd>F5</kbd> to start debugging.
+**Step 2:** Put a breakpoint in `Program.cs` or anywhere else in the code and press <kbd>F5</kbd> to start debugging.
 
 ## How to Run the Unit Tests
 Navigate to the **test/GridcoinDPOR.Tests** directory and then it the command prompt/terminal run the following:
@@ -101,7 +100,7 @@ std::string exec(const char* cmd) {
 
 int main()
 {   
-    std::string result = exec("dotnet GridcoinDPOR.dll -d=\"C:\\Users\\3ullShark\\AppData\\Roaming\\GridcoinResearch\" -c=syncdpor2");
+    std::string result = exec("dotnet GridcoinDPOR.dll -gridcoindatadir=\"C:\\Users\\3ullShark\\AppData\\Roaming\\GridcoinResearch\" -syncdpor2=[SYNCDATAXML]");
     std::cout << result;
     return 0;
 }
