@@ -53,14 +53,13 @@ namespace GridcoinDPOR
                         {
                             if (await GZipUtil.DecompressGZipFile(teamGzip, teamXml))
                             {
-                                // get the team id from the file
                                 project.TeamId = await TeamXmlParser.GetGridcoinTeamIdAsync(teamXml);
                             }
                             break;
                         }
                         else
                         {
-                            _logger.ForContext(nameof(Service)).Information("Failed to download team file from URL: {0}", teamUrl);
+                            _logger.ForContext(nameof(Service)).Warning("Failed to download team file from URL: {0}", teamUrl);
                         }
                     }
 
@@ -74,14 +73,13 @@ namespace GridcoinDPOR
                         {
                             if (await GZipUtil.DecompressGZipFile(userGzip, userXml))
                             {
-                                // get user data from xml
                                 var usersInProject = await UserXmlParser.GetUsersInTeamWithBeaconAsync(userXml, project.TeamId, syncData.CpidData);
                             }
                             break;
                         }
                         else
                         {
-                            _logger.ForContext(nameof(Service)).Information("Failed to download user file from URL: {0}", userUrl);
+                            _logger.ForContext(nameof(Service)).Warning("Failed to download user file from URL: {0}", userUrl);
                         }
                     }
                 }
