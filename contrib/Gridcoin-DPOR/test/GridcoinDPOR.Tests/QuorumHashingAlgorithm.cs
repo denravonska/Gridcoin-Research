@@ -12,7 +12,7 @@ using Xunit;
 
 namespace GridcoinDPOR.Tests
 {
-    public class ContractTests
+    public class QuorumHashingAlgorithmTests
     {
         [Fact]
         public void GetNeuralHash_Success()
@@ -22,9 +22,10 @@ namespace GridcoinDPOR.Tests
             var dirPath = Path.GetDirectoryName(location);
             var path = Path.Combine(dirPath, "../../../TestData/contract.txt");
             var contactData = File.ReadAllText(path);
+            var quorumHashingAlgo = new QuorumHashingAlgorithm();
 
             // ACT
-            var hash = Contract.GetNeuralHash(contactData);
+            var hash = quorumHashingAlgo.GetNeuralHash(contactData);
 
             // ASSERT
             Assert.Equal(expected: "252d46b8ff990dd93130891e8178f943", actual: hash);
