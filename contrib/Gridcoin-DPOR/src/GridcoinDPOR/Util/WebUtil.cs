@@ -24,7 +24,7 @@ namespace GridcoinDPOR.Util
             set { _logger = value;}
         }
 
-        private static HttpClient _httpClient = new HttpClient();
+        //private static HttpClient _httpClient = new HttpClient();
 
         public static async Task<bool> DownloadFile(string requestUri, string filePath)
         {
@@ -32,6 +32,7 @@ namespace GridcoinDPOR.Util
             {
                 var filename = Path.GetFileName(filePath);
 
+                using(var _httpClient = new HttpClient())
                 using(var response = await _httpClient.GetAsync(
                     requestUri: requestUri, 
                     completionOption: HttpCompletionOption.ResponseHeadersRead

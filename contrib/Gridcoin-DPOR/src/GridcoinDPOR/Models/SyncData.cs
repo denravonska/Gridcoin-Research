@@ -27,7 +27,7 @@ namespace GridcoinDPOR.Models
         {
             // GET WHITELIST DATA
             var whitelist = new List<Whitelist>();
-            var whitelistXml = ExtractXML(syndDataXml, "<WHITELIST>");
+            var whitelistXml = XmlUtil.ExtractXml(syndDataXml, "WHITELIST");
             var whitelistRows = whitelistXml.Split(new string[] {"<ROW>"}, StringSplitOptions.RemoveEmptyEntries);
 
             foreach(var row in whitelistRows)
@@ -42,13 +42,11 @@ namespace GridcoinDPOR.Models
 
             // GET CPID DATA
             var cpidData = new List<CpidData>();
-            var cpidDataXml = ExtractXML(syndDataXml, "<CPIDDATA>");
+            var cpidDataXml = XmlUtil.ExtractXml(syndDataXml, "CPIDDATA");
             var cpidDataRows = cpidDataXml.Split(new string[] {"<ROW>"}, StringSplitOptions.RemoveEmptyEntries);
 
             // TODO: Not sure what this data is?
             var testNet = cpidDataRows[0].Split(new string[] {"<COL>"}, StringSplitOptions.RemoveEmptyEntries);
-
-            Console.WriteLine("Updating magnitude in testnet={0} for {1} CPIDS", "", cpidDataRows.Length);
             
             foreach(var row in cpidDataRows)
             {
@@ -72,28 +70,14 @@ namespace GridcoinDPOR.Models
             {
                 Whitelist = whitelist,
                 CpidData = cpidData,
-                Age = ExtractXML(syndDataXml, "<AGE>"),
-                QuorumHash = ExtractXML(syndDataXml, "<HASH>"),
-                TimeStamp = ExtractXML(syndDataXml, "<TIMESTAMP>"),
-                BlockNumber = ExtractXML(syndDataXml, "<BLOCKNUMBER>"),
-                PrimaryCPID = ExtractXML(syndDataXml, "<PRIMARYCPID>"),
+                Age = XmlUtil.ExtractXml(syndDataXml, "AGE"),
+                QuorumHash = XmlUtil.ExtractXml(syndDataXml, "HASH"),
+                TimeStamp = XmlUtil.ExtractXml(syndDataXml, "TIMESTAMP"),
+                BlockNumber = XmlUtil.ExtractXml(syndDataXml, "BLOCKNUMBER"),
+                PrimaryCPID = XmlUtil.ExtractXml(syndDataXml, "PRIMARYCPID"),
             };
 
             return syncData;
-        }
-
-        private static string ExtractXML(string data, string startTag)
-        {
-            var endTag = startTag.Replace("<", "</");
-            var regex = new Regex(string.Format("{0}(.*?){1}", startTag, endTag));
-            var match = regex.Match(data);
-
-            if (match.Groups.Count > 1)
-            {
-                return match.Groups[1].ToString();
-            }
-
-            return "";
         }
     }
 
@@ -101,7 +85,7 @@ namespace GridcoinDPOR.Models
     {
         public string Name { get; set; }
         public string Url { get; set; }
-        public string TeamId { get; set; }
+        public int TeamId { get; set; }
 
         public IEnumerable<string> GetUserUrls()
         {

@@ -10,36 +10,60 @@ using System.Linq;
 using XmlTextReader = System.Xml.XmlReader;
 using GridcoinDPOR.Models;
 using System;
+using Serilog;
+using GridcoinDPOR.Logging;
+using System.Threading.Tasks;
+using GridcoinDPOR.Util;
 
 namespace GridcoinDPOR
 {
     public static class TeamXmlParser
     {
-        public static string GetTeamIdByTeamName(string filePath, string teamName)
-        {
-            try
-            {
-                using (var fileStream = File.OpenRead(filePath))
-                using (var xmlReader = XmlReader.Create(fileStream, new XmlReaderSettings() { DtdProcessing = DtdProcessing.Prohibit, IgnoreWhitespace = true }))
-                {
-                    var doc = XDocument.Load(xmlReader);
-                    var nonamespace = XNamespace.None;
-                    var teams = (from team in doc.Descendants(nonamespace + "team")
-                    where team.Element("name").Value.Equals("gridcoin", StringComparison.CurrentCultureIgnoreCase)
-                    select new 
-                    {
-                        Id = team.Element("id").Value,
-                        Name = team.Element("name").Value,
-                    }).ToList();
+        private static ILogger _logger = new NullLogger();
+        public static ILogger Logger 
+        { 
+            get { return _logger; } 
+            set { _logger = value;}
+        }
 
-                    return teams.Single().Id;
+        public static async Task<int> GetGridcoinTeamIdAsync(string filePath)
+        {
+            var filename = Path.GetFileName(filePath);
+            var users = new List<User>();
+            var readerSettings = new XmlReaderSettings()
+            {
+                DtdProcessing = DtdProcessing.Prohibit,
+                IgnoreProcessingInstructions = true,
+                IgnoreWhitespace = true,
+                IgnoreComments = true,
+                Async = true
+            };
+
+            using (var fileStream = File.OpenRead(filePath))
+            using (var reader = XmlReader.Create(fileStream, readerSettings))
+            {
+                _logger.ForContext(nameof(TeamXmlParser)).Information("Started parsing {0} for the Gridcoin  TeamID", filename);
+                while(!reader.EOF)
+                {
+                    if (reader.NodeType == XmlNodeType.Element && reader.Name == "team")
+                    {
+                        var xml = await reader.ReadInnerXmlAsync();
+                        var teamName = XmlUtil.ExtractXml(xml, "name");
+                        if (teamName.Equals("gridcoin", StringComparison.CurrentCultureIgnoreCase))
+                        {
+                            var teamId = Convert.ToInt32(XmlUtil.ExtractXml(xml, "id"));
+                            _logger.ForContext(nameof(TeamXmlParser)).Information("Found TeamID: {0} with the name Gridcoin in the file {1}", teamId, filename);
+                            return teamId;
+                        }
+                    }
+                    else
+                    {
+                        await reader.ReadAsync();
+                    }
                 }
             }
-            catch(Exception ex)
-            {
-                Console.WriteLine("ERROR: {0}", ex);
-                return "";
-            }
+            _logger.ForContext(nameof(TeamXmlParser)).Warning("Could not find a team with the name Gridcoin in the file {0}", filename);
+            return 0;
         }
     }
 }

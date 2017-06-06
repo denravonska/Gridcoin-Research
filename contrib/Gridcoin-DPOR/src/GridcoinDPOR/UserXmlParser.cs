@@ -10,38 +10,69 @@ using System.Linq;
 using XmlTextReader = System.Xml.XmlReader;
 using GridcoinDPOR.Models;
 using System;
+using Serilog;
+using GridcoinDPOR.Logging;
+using System.Threading.Tasks;
+using System.Text;
+using GridcoinDPOR.Util;
+using System.Globalization;
 
 namespace GridcoinDPOR
 {
     public static class UserXmlParser
     {
-        public static IEnumerable<User> GetUsersInTeamWithBeacon(string filePath, string teamId, IEnumerable<CpidData> cpids)
-        {
-            try
-            {
-                using (var fileStream = File.OpenRead(filePath))
-                using (var xmlReader = XmlReader.Create(fileStream, new XmlReaderSettings() { DtdProcessing = DtdProcessing.Prohibit, IgnoreWhitespace = true }))
-                {
-                    var doc = XDocument.Load(xmlReader);
-                    var nonamespace = XNamespace.None;
-                    var users = (from user in doc.Descendants(nonamespace + "user")
-                    where cpids.Any(x => x.CPID == user.Element("cpid").Value)
-                    select new User
-                    {
-                        CPID = user.Element("cpid").Value,
-                        Name = user.Element("name").Value,
-                        TotalCredit = Convert.ToDouble(user.Element("total_credit").Value),
-                        RAC = Convert.ToDouble(user.Element("expavg_credit").Value), 
-                    }).ToList();
+        private static ILogger _logger = new NullLogger();
+        public static ILogger Logger 
+        { 
+            get { return _logger; } 
+            set { _logger = value;}
+        }
 
-                    return users;
+        public static async Task<IEnumerable<User>> GetUsersInTeamWithBeaconAsync(string filePath, int teamId, IEnumerable<CpidData> cpids)
+        {
+            var filename = Path.GetFileName(filePath);
+            var users = new List<User>();
+            var readerSettings = new XmlReaderSettings()
+            {
+                DtdProcessing = DtdProcessing.Prohibit,
+                IgnoreProcessingInstructions = true,
+                IgnoreWhitespace = true,
+                IgnoreComments = true,
+                Async = true
+            };
+
+            using (var fileStream = File.OpenRead(filePath))
+            using (var reader = XmlReader.Create(fileStream, readerSettings))
+            {
+                _logger.ForContext(nameof(UserXmlParser)).Information("Started parsing {0} for CPID's and Credit with TeamID: {1}", filename, teamId);
+                while(!reader.EOF)
+                {
+                    if (reader.NodeType == XmlNodeType.Element && reader.Name == "user")
+                    {
+                        var xml = await reader.ReadInnerXmlAsync();
+                        var recordCpid = XmlUtil.ExtractXml(xml, "cpid");
+                        if (cpids.Any(a => a.CPID == recordCpid))
+                        {
+                            var recordTeamId = XmlUtil.ExtractXml(xml, "teamid");
+                            if (teamId.ToString().Equals(recordTeamId))
+                            {
+                                users.Add(new User()
+                                {
+                                    CPID = recordCpid,
+                                    TotalCredit = Convert.ToDouble(XmlUtil.ExtractXml(xml, "total_credit")),
+                                    RAC = Convert.ToDouble(XmlUtil.ExtractXml(xml, "expavg_credit")),
+                                });
+                            }
+                        }
+                    }
+                    else
+                    {
+                        await reader.ReadAsync();
+                    }
                 }
             }
-            catch(Exception ex)
-            {
-                Console.WriteLine("ERROR: {0}", ex);
-                return new List<User>();
-            }
+            _logger.ForContext(nameof(UserXmlParser)).Information("Finished parsing {0} and found {1} CPID's", filename, users.Count);
+            return users;
         }
     }
 }

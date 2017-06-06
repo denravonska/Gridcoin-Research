@@ -84,15 +84,18 @@ namespace GridcoinDPOR
                 // assign logger to classes we want logging in
                 // TODO: probably a better way of handling the logging.
                 WebUtil.Logger = logger;
+                GZipUtil.Logger = logger;
+                TeamXmlParser.Logger = logger;
+                UserXmlParser.Logger = logger;
                                                    
-                logger.ForContext<Program>().Information("Logging started at INFORMATION level");
+                logger.ForContext<Program>().Information("Logging started at [Information] level");
                 
                 // should we switch logging to Verbose?
                 var conf = File.ReadAllText(gridcoinConf);
                 if (conf.Contains("debug2=true"))
                 {
                     levelSwitch.MinimumLevel = LogEventLevel.Verbose;
-                    logger.Information("debug2=true detected in gridcoinresearch.conf logging changed to VERBOSE");
+                    logger.Information("debug2=true detected in gridcoinresearch.conf logging changed to [Verbose]");
                 }
 
                 Task.Run(async () =>

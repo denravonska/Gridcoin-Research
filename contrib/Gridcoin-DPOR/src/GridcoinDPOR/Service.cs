@@ -25,11 +25,13 @@ namespace GridcoinDPOR
         public static async Task<bool> SyncDPOR2(string dataDirectory, string syncDataXml)
         {
             var dporDir = Path.Combine(dataDirectory, "DPOR");
+            var statsDir = Path.Combine(dporDir, "stats");
+
             var syncFile = Path.Combine(dporDir, "syncing.lck");
             
-            if (!Directory.Exists(dporDir)) 
+            if (!Directory.Exists(statsDir)) 
             {
-                Directory.CreateDirectory(dporDir);
+                Directory.CreateDirectory(statsDir);
             }
             
             try
@@ -44,15 +46,15 @@ namespace GridcoinDPOR
                     // get team file
                     foreach(var teamUrl in project.GetTeamUrls())
                     {
-                        var teamGzip = Path.Combine(dporDir, project.Name.ToLower().Replace(" ", "_") + "_team.gz");
-                        var teamXml = Path.Combine(dporDir, project.Name.ToLower().Replace(" ", "_") + "_team.xml");
+                        var teamGzip = Path.Combine(statsDir, project.Name.ToLower().Replace(" ", "_") + "_team.gz");
+                        var teamXml = Path.Combine(statsDir, project.Name.ToLower().Replace(" ", "_") + "_team.xml");
                         var teamGzipDownloadResult = await WebUtil.DownloadFile(teamUrl, teamGzip);
                         if (teamGzipDownloadResult)
                         {
                             if (await GZipUtil.DecompressGZipFile(teamGzip, teamXml))
                             {
                                 // get the team id from the file
-                                project.TeamId = TeamXmlParser.GetTeamIdByTeamName(teamXml, "Gridcoin");
+                                project.TeamId = await TeamXmlParser.GetGridcoinTeamIdAsync(teamXml);
                             }
                             break;
                         }
@@ -65,15 +67,15 @@ namespace GridcoinDPOR
                     // get the user file
                     foreach(var userUrl in project.GetUserUrls())
                     {
-                        var userGzip = Path.Combine(dporDir, project.Name.ToLower().Replace(" ", "_") + "_user.gz");
-                        var userXml = Path.Combine(dporDir, project.Name.ToLower().Replace(" ", "_") + "_user.xml");
+                        var userGzip = Path.Combine(statsDir, project.Name.ToLower().Replace(" ", "_") + "_user.gz");
+                        var userXml = Path.Combine(statsDir, project.Name.ToLower().Replace(" ", "_") + "_user.xml");
                         var userGzipDownloadResult = await WebUtil.DownloadFile(userUrl, userGzip);
                         if (userGzipDownloadResult)
                         {
                             if (await GZipUtil.DecompressGZipFile(userGzip, userXml))
                             {
                                 // get user data from xml
-                                var usersInProject = UserXmlParser.GetUsersInTeamWithBeacon(userXml, project.TeamId, syncData.CpidData);
+                                var usersInProject = await UserXmlParser.GetUsersInTeamWithBeaconAsync(userXml, project.TeamId, syncData.CpidData);
                             }
                             break;
                         }

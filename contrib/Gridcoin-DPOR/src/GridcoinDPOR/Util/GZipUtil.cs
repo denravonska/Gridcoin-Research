@@ -6,11 +6,20 @@ using System;
 using System.IO;
 using System.IO.Compression;
 using System.Threading.Tasks;
+using GridcoinDPOR.Logging;
+using Serilog;
 
 namespace GridcoinDPOR.Util
 {
     public static class GZipUtil
     {
+        private static ILogger _logger = new NullLogger();
+        public static ILogger Logger 
+        { 
+            get { return _logger; } 
+            set { _logger = value;}
+        }
+        
         public static async Task<bool> DecompressGZipFile(string inputFile, string outputFile)
         {
             try
@@ -19,13 +28,25 @@ namespace GridcoinDPOR.Util
                 using (FileStream outputFileStream = File.Create(outputFile))
                 using (GZipStream gzipStream = new GZipStream(inputFileStream, CompressionMode.Decompress))
                 {
+                    _logger.ForContext(nameof(GZipUtil)).Information("Started decompressing file {0} to {1}", Path.GetFileName(inputFile), Path.GetFileName(outputFile));
                     await gzipStream.CopyToAsync(outputFileStream);
+                    _logger.ForContext(nameof(GZipUtil)).Information("Finished decompressing file {0} to {1}", Path.GetFileName(inputFile), Path.GetFileName(outputFile));
+                }
+
+                if (File.Exists(outputFile))
+                {
+                    _logger.ForContext(nameof(GZipUtil)).Information("Successfully decompressing file {0} to {1}", Path.GetFileName(inputFile), Path.GetFileName(outputFile));
                     return true;
+                }
+                else
+                {
+                    _logger.ForContext(nameof(GZipUtil)).Error("Failed to decompressing file {0} to {1}", Path.GetFileName(inputFile), Path.GetFileName(outputFile));
+                    return false;
                 }
             }
             catch(Exception ex)
             {
-                Console.WriteLine(ex);
+                _logger.ForContext(nameof(GZipUtil)).Error("Failed to decompressing file. {0}", ex);
                 return false;
             }
         }
