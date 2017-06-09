@@ -30,6 +30,15 @@ bool CheckStakeKernelHash(CBlockIndex* pindexPrev, unsigned int nBits, const CBl
 bool CheckProofOfStake(CBlockIndex* pindexPrev, const CTransaction& tx, unsigned int nBits, uint256& hashProofOfStake, 
 	uint256& targetProofOfStake, std::string hashBoinc, bool checking_local, double por_nonce);
 
+CBigNum CalculateStakeHashV3(
+    const CBlock &CoinBlock, const CTransaction &CoinTx,
+    unsigned CoinTxN, unsigned TxTime,
+    const MiningCPID &BoincData, double mdPORNonce);
+
+int64_t CalculateStakeWeightV3(
+    const CTransaction &CoinTx, unsigned CoinTxN,
+    const MiningCPID &BoincData);
+
 // Check whether the coinstake timestamp meets protocol
 bool CheckCoinStakeTimestamp(int nHeight, int64_t nTimeBlock, int64_t nTimeTx);
 
@@ -41,5 +50,21 @@ bool CheckStakeModifierCheckpoints(int nHeight, unsigned int nStakeModifierCheck
 
 // Get time weight using supplied timestamps
 int64_t GetWeight(int64_t nIntervalBeginning, int64_t nIntervalEnd);
+
+//Block version 8+ Staking
+bool CheckProofOfStakeV8(
+    CBlockIndex* pindexPrev, //previous block in chain index
+    CBlock &Block, //block to check
+    bool generated_by_me,
+    uint256& hashProofOfStake); //proof hash out-parameter
+
+// Kernel for V8
+CBigNum CalculateStakeHashV8(
+    const CBlock &CoinBlock, const CTransaction &CoinTx,
+    unsigned CoinTxN, unsigned nTimeTx,
+    const MiningCPID &BoincData);
+int64_t CalculateStakeWeightV8(
+    const CTransaction &CoinTx, unsigned CoinTxN,
+    const MiningCPID &BoincData);
 
 #endif // PPCOIN_KERNEL_H
