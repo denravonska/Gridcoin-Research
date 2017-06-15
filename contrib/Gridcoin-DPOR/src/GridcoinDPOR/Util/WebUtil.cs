@@ -24,7 +24,7 @@ namespace GridcoinDPOR.Util
             set { _logger = value;}
         }
 
-        //private static HttpClient _httpClient = new HttpClient();
+        private static HttpClient _httpClient = new HttpClient();
 
         public static async Task<bool> DownloadFile(string requestUri, string filePath)
         {
@@ -32,7 +32,7 @@ namespace GridcoinDPOR.Util
             {
                 var filename = Path.GetFileName(filePath);
 
-                using(var _httpClient = new HttpClient())
+                //using(var _httpClient = new HttpClient())
                 using(var response = await _httpClient.GetAsync(
                     requestUri: requestUri, 
                     completionOption: HttpCompletionOption.ResponseHeadersRead
@@ -52,7 +52,12 @@ namespace GridcoinDPOR.Util
                         _logger.ForContext(nameof(WebUtil)).Debug("Last-Modified of local file {0} is {1}", filename, localFileLastModified);
                     }
 
-                    var remoteFileLastModified = response.Content.Headers.LastModified;
+                    DateTime remoteFileLastModified = DateTime.UtcNow;
+                    if (response.Content.Headers.LastModified.HasValue)
+                    {
+                        remoteFileLastModified = response.Content.Headers.LastModified.Value.UtcDateTime;
+                    }
+
                     _logger.ForContext(nameof(WebUtil)).Debug("Last-Modified of remote file {0} is {1}", requestUri, remoteFileLastModified);
 
                     
@@ -64,12 +69,9 @@ namespace GridcoinDPOR.Util
                             await response.Content.CopyToAsync(fileStream);
                         }
 
-                        if (remoteFileLastModified.HasValue)
-                        {
-                            File.SetLastAccessTimeUtc(filePath, remoteFileLastModified.Value.UtcDateTime);
-                            _logger.ForContext(nameof(WebUtil)).Debug("Assigned Last-Modified to local file {0}", remoteFileLastModified.Value.UtcDateTime);
-                        }
-
+                        File.SetLastAccessTimeUtc(filePath, remoteFileLastModified);
+                        _logger.ForContext(nameof(WebUtil)).Debug("Assigned Last-Modified to local file {0}", remoteFileLastModified);
+                        
                         return true;
                     }
                     else
