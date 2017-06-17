@@ -28,6 +28,52 @@ namespace GridcoinDPOR
             set { _logger = value;}
         }
 
+        public static async Task<IEnumerable<User>> GetUsersWithBeaconAsync(string filePath, IEnumerable<CpidData> cpids)
+        {
+            var filename = Path.GetFileName(filePath);
+            var users = new List<User>();
+            var readerSettings = new XmlReaderSettings()
+            {
+                DtdProcessing = DtdProcessing.Prohibit,
+                IgnoreProcessingInstructions = true,
+                IgnoreWhitespace = true,
+                IgnoreComments = true,
+                Async = true
+            };
+
+            using (var fileStream = File.OpenRead(filePath))
+            using (var reader = XmlReader.Create(fileStream, readerSettings))
+            {
+                _logger.ForContext(nameof(UserXmlParser)).Information("Started parsing {0} for CPID's and Credit", filename);
+                while(!reader.EOF)
+                {
+                    if (reader.NodeType == XmlNodeType.Element && reader.Name == "user")
+                    {
+                        var xml = await reader.ReadInnerXmlAsync();
+                        var recordCpid = XmlUtil.ExtractXml(xml, "cpid");
+                        if (cpids.Any(a => a.CPID == recordCpid))
+                        {
+                            var recordTeamId = XmlUtil.ExtractXml(xml, "teamid");
+                            //if (teamId.ToString().Equals(recordTeamId))
+                            //{
+                                users.Add(new User()
+                                {
+                                    CPID = recordCpid,
+                                    TotalCredit = Convert.ToDouble(XmlUtil.ExtractXml(xml, "total_credit")),
+                                    RAC = Convert.ToDouble(XmlUtil.ExtractXml(xml, "expavg_credit")),
+                                });
+                            //}
+                        }
+                    }
+                    else
+                    {
+                        await reader.ReadAsync();
+                    }
+                }
+            }
+            _logger.ForContext(nameof(UserXmlParser)).Information("Finished parsing {0} and found {1} CPID's", filename, users.Count);
+            return users;
+        }
         public static async Task<IEnumerable<User>> GetUsersInTeamWithBeaconAsync(string filePath, int teamId, IEnumerable<CpidData> cpids)
         {
             var filename = Path.GetFileName(filePath);

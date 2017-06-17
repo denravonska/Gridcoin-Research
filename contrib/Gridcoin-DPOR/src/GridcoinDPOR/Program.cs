@@ -31,6 +31,7 @@ namespace GridcoinDPOR
                 string gridcoinDataDir = "";
                 string commandName = "";
                 string commandOption = "";
+                bool teamOption = true;
                 bool debug = false;
 
                 foreach(var arg in args)
@@ -47,6 +48,10 @@ namespace GridcoinDPOR
                     if (arg.StartsWith("-debug"))
                     {
                         debug = true;
+                    }
+                    if(arg.StartsWith("-noteam"))
+                    {
+                        teamOption = false;
                     }
                 }
 
@@ -106,7 +111,7 @@ namespace GridcoinDPOR
                         case "syncdpor2":
                             Console.Write("1");
                             logger.ForContext<Program>().Information("SyncDPOR2 started");
-                            await Service.SyncDPOR2(gridcoinDataDir, commandOption);
+                            await Service.SyncDPOR2(gridcoinDataDir, commandOption, teamOption);
                             logger.ForContext<Program>().Information("SyncDPOR2 finished");
                             break;
                         default:
