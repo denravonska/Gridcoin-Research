@@ -22,7 +22,7 @@ namespace GridcoinDPOR
             set { _logger = value;}
         }
         
-        public static async Task<bool> SyncDPOR2(string dataDirectory, string syncDataXml)
+        public static async Task<bool> SyncDPOR2(string dataDirectory, string syncDataXml, bool teamOption)
         {
             var dporDir = Path.Combine(dataDirectory, "DPOR");
             var statsDir = Path.Combine(dporDir, "stats");
@@ -44,22 +44,24 @@ namespace GridcoinDPOR
                 foreach(var project in syncData.Whitelist)
                 {
                     // get team file
-                    foreach(var teamUrl in project.GetTeamUrls())
-                    {
-                        var teamGzip = Path.Combine(statsDir, project.Name.ToLower().Replace(" ", "_") + "_team.gz");
-                        var teamXml = Path.Combine(statsDir, project.Name.ToLower().Replace(" ", "_") + "_team.xml");
-                        var teamGzipDownloadResult = await WebUtil.DownloadFile(teamUrl, teamGzip);
-                        if (teamGzipDownloadResult)
+                    if(teamOption){
+                        foreach(var teamUrl in project.GetTeamUrls())
                         {
-                            if (await GZipUtil.DecompressGZipFile(teamGzip, teamXml))
+                            var teamGzip = Path.Combine(statsDir, project.Name.ToLower().Replace(" ", "_") + "_team.gz");
+                            var teamXml = Path.Combine(statsDir, project.Name.ToLower().Replace(" ", "_") + "_team.xml");
+                            var teamGzipDownloadResult = await WebUtil.DownloadFile(teamUrl, teamGzip);
+                            if (teamGzipDownloadResult)
                             {
-                                project.TeamId = await TeamXmlParser.GetGridcoinTeamIdAsync(teamXml);
+                                if (await GZipUtil.DecompressGZipFile(teamGzip, teamXml))
+                                {
+                                    project.TeamId = await TeamXmlParser.GetGridcoinTeamIdAsync(teamXml);
+                                }
+                                break;
                             }
-                            break;
-                        }
-                        else
-                        {
-                            _logger.ForContext(nameof(Service)).Warning("Failed to download team file from URL: {0}", teamUrl);
+                            else
+                            {
+                                _logger.ForContext(nameof(Service)).Warning("Failed to download team file from URL: {0}", teamUrl);
+                            }
                         }
                     }
 
@@ -73,7 +75,14 @@ namespace GridcoinDPOR
                         {
                             if (await GZipUtil.DecompressGZipFile(userGzip, userXml))
                             {
-                                var usersInProject = await UserXmlParser.GetUsersInTeamWithBeaconAsync(userXml, project.TeamId, syncData.CpidData);
+                                if(teamOption)
+                                {
+                                    var usersInProject = await UserXmlParser.GetUsersInTeamWithBeaconAsync(userXml, project.TeamId, syncData.CpidData);
+                                }
+                                else
+                                {
+                                    var usersInProject = await UserXmlParser.GetUsersWithBeaconAsync(userXml, syncData.CpidData);
+                                }
                             }
                             break;
                         }
