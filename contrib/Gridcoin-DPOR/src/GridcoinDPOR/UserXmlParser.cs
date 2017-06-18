@@ -53,16 +53,13 @@ namespace GridcoinDPOR
                         var recordCpid = XmlUtil.ExtractXml(xml, "cpid");
                         if (cpids.Any(a => a.CPID == recordCpid))
                         {
-                            var recordTeamId = XmlUtil.ExtractXml(xml, "teamid");
-                            //if (teamId.ToString().Equals(recordTeamId))
-                            //{
-                                users.Add(new User()
-                                {
-                                    CPID = recordCpid,
-                                    TotalCredit = Convert.ToDouble(XmlUtil.ExtractXml(xml, "total_credit")),
-                                    RAC = Convert.ToDouble(XmlUtil.ExtractXml(xml, "expavg_credit")),
-                                });
-                            //}
+                            users.Add(new User()
+                            {
+                                CPID = recordCpid,
+                                TotalCredit = Convert.ToDouble(XmlUtil.ExtractXml(xml, "total_credit")),
+                                RAC = Convert.ToDouble(XmlUtil.ExtractXml(xml, "expavg_credit")),
+                                ProjectUserID = Convert.ToInt32(XmlUtil.ExtractXml(xml, "id")),
+                            });
                         }
                     }
                     else
@@ -107,6 +104,7 @@ namespace GridcoinDPOR
                                     CPID = recordCpid,
                                     TotalCredit = Convert.ToDouble(XmlUtil.ExtractXml(xml, "total_credit")),
                                     RAC = Convert.ToDouble(XmlUtil.ExtractXml(xml, "expavg_credit")),
+                                    ProjectUserID = Convert.ToInt32(XmlUtil.ExtractXml(xml, "id")),
                                 });
                             }
                         }

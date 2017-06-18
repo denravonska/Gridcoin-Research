@@ -9,6 +9,7 @@ namespace GridcoinDPOR.Models
         public string CPID { get; set; }
         public string Name { get; set; }
         public string Project { get; set; }
+        public int ProjectUserID { get; set; }
         public double TotalCredit {get; set; }
         public double RAC { get; set; }
     }
