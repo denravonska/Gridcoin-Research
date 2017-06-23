@@ -18,9 +18,9 @@ namespace GridcoinDPOR.Tests
         public async void GetUsersInTeamWithBeaconAsync_Success()
         {
             // ARRANGE
-            var location = typeof(UserXmlParserTests).GetTypeInfo().Assembly.Location;
+            var location = typeof(TeamXmlParserTests).GetTypeInfo().Assembly.Location;
             var dirPath = Path.GetDirectoryName(location);
-            var path = Path.Combine(dirPath, "../../../TestData/tn-grid_team.xml");
+            var path = Path.Combine(dirPath, "../../../TestData/tn-grid_team.gz");
 
             // ACT
             var teamId = await TeamXmlParser.GetGridcoinTeamIdAsync(path);

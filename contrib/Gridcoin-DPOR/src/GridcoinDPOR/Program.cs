@@ -14,6 +14,7 @@ using Serilog;
 using Serilog.Sinks.RollingFile;
 using Serilog.Core;
 using Serilog.Events;
+using GridcoinDPOR.Data;
 
 namespace GridcoinDPOR
 {
@@ -83,15 +84,13 @@ namespace GridcoinDPOR
                 var logPath = Path.Combine(gridcoinDataDir, "DPOR", "logs", "debug-{Date}.log");
                 var levelSwitch = new LoggingLevelSwitch();
                 var logger = new LoggerConfiguration().MinimumLevel.ControlledBy(levelSwitch)
-                                                   .WriteTo.RollingFile(logPath)
-                                                   .CreateLogger();
+                                                      .WriteTo.RollingFile(logPath)
+                                                      .CreateLogger();
                                                 
                 // assign logger to classes we want logging in
                 // TODO: probably a better way of handling the logging.
                 WebUtil.Logger = logger;
-                GZipUtil.Logger = logger;
                 TeamXmlParser.Logger = logger;
-                UserXmlParser.Logger = logger;
                                                    
                 logger.ForContext<Program>().Information("Logging started at [Information] level");
                 
@@ -111,7 +110,12 @@ namespace GridcoinDPOR
                         case "syncdpor2":
                             Console.Write("1");
                             logger.ForContext<Program>().Information("SyncDPOR2 started");
-                            await Service.SyncDPOR2(gridcoinDataDir, commandOption, teamOption);
+                            using(var dbContext = GridcoinContext.Create(gridcoinDataDir))
+                            {
+                                var dataSynchronizer = new DataSynchronizer(dbContext);
+                                dataSynchronizer.Logger = logger;
+                                await dataSynchronizer.SyncDPOR2(gridcoinDataDir, commandOption, teamOption);
+                            }
                             logger.ForContext<Program>().Information("SyncDPOR2 finished");
                             break;
                         default:

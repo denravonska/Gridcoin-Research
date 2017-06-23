@@ -18,7 +18,7 @@ namespace GridcoinDPOR.Tests
         public void GetNeuralHash_Success()
         {
             // ARRANGE
-            var location = typeof(UserXmlParserTests).GetTypeInfo().Assembly.Location;
+            var location = typeof(QuorumHashingAlgorithmTests).GetTypeInfo().Assembly.Location;
             var dirPath = Path.GetDirectoryName(location);
             var path = Path.Combine(dirPath, "../../../TestData/contract.txt");
             var contactData = File.ReadAllText(path);

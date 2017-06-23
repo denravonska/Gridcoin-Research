@@ -14,6 +14,7 @@ using Serilog;
 using GridcoinDPOR.Logging;
 using System.Threading.Tasks;
 using GridcoinDPOR.Util;
+using System.IO.Compression;
 
 namespace GridcoinDPOR
 {
@@ -29,7 +30,6 @@ namespace GridcoinDPOR
         public static async Task<int> GetGridcoinTeamIdAsync(string filePath)
         {
             var filename = Path.GetFileName(filePath);
-            var users = new List<User>();
             var readerSettings = new XmlReaderSettings()
             {
                 DtdProcessing = DtdProcessing.Prohibit,
@@ -39,8 +39,9 @@ namespace GridcoinDPOR
                 Async = true
             };
 
-            using (var fileStream = File.OpenRead(filePath))
-            using (var reader = XmlReader.Create(fileStream, readerSettings))
+            using (var inputFileStream = File.OpenRead(filePath))
+            using (var gzipStream = new GZipStream(inputFileStream, CompressionMode.Decompress))
+            using (var reader = XmlReader.Create(gzipStream, readerSettings))
             {
                 _logger.ForContext(nameof(TeamXmlParser)).Information("Started parsing {0} for the Gridcoin  TeamID", filename);
                 while(!reader.EOF)
