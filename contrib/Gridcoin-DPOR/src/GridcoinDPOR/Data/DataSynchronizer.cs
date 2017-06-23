@@ -124,10 +124,12 @@ namespace GridcoinDPOR.Data
             }
             else 
             {
-                _db.Projects.Add(new Project()
+                project = new Project()
                 {
                     Name = projectName,
-                });
+                };
+
+                _db.Projects.Add(project);
 
                 int changes = await _db.SaveChangesAsync();
             }
