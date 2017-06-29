@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using GridcoinDPOR.Data.Models;
 using System.IO;
+using Microsoft.EntityFrameworkCore.Metadata;
 
 namespace GridcoinDPOR.Data
 {
@@ -25,8 +26,25 @@ namespace GridcoinDPOR.Data
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+             modelBuilder.Entity<Project>()
+                        .HasIndex(x => x.Name)
+                        .IsUnique();
+
             modelBuilder.Entity<Researcher>()
-                        .HasIndex(x => x.CPID);
+                        .HasIndex(x => x.CPID)
+                        .IsUnique();
+
+            modelBuilder.Entity<ProjectResearcher>()
+                        .HasOne(x => x.Project)
+                        .WithMany(x => x.ProjectResearchers)
+                        .HasForeignKey(x => x.ProjectId)
+                        .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ProjectResearcher>()
+                        .HasOne(x => x.Reseracher)
+                        .WithMany(x => x.ProjectResearchers)
+                        .HasForeignKey(x => x.ResearcherId)
+                        .OnDelete(DeleteBehavior.Cascade);
         }
 
         public static GridcoinContext Create(string dataDirectory)

@@ -46,6 +46,10 @@ namespace GridcoinDPOR
                         commandName = "syncdpor2";
                         commandOption = arg.Replace("-syncdpor2", "").Replace("=", "");
                     }
+                    if (arg.StartsWith("-neuralcontract"))
+                    {
+                        commandName = "neuralcontract";
+                    }
                     if (arg.StartsWith("-debug"))
                     {
                         debug = true;
@@ -90,9 +94,9 @@ namespace GridcoinDPOR
                 // assign logger to classes we want logging in
                 // TODO: probably a better way of handling the logging.
                 WebUtil.Logger = logger;
-                TeamXmlParser.Logger = logger;
+                //TeamXmlParser.Logger = logger;
                                                    
-                logger.ForContext<Program>().Information("Logging started at [Information] level");
+                logger.Information("Logging started at [Information] level");
                 
                 // should we switch logging to Verbose?
                 var conf = File.ReadAllText(gridcoinConf);
@@ -109,14 +113,25 @@ namespace GridcoinDPOR
                     {
                         case "syncdpor2":
                             Console.Write("1");
-                            logger.ForContext<Program>().Information("SyncDPOR2 started");
+                            logger.Information("SyncDPOR2 started");
                             using(var dbContext = GridcoinContext.Create(gridcoinDataDir))
                             {
                                 var dataSynchronizer = new DataSynchronizer(dbContext);
                                 dataSynchronizer.Logger = logger;
-                                await dataSynchronizer.SyncDPOR2(gridcoinDataDir, commandOption, teamOption);
+                                await dataSynchronizer.Sync(gridcoinDataDir, commandOption, teamOption);
                             }
-                            logger.ForContext<Program>().Information("SyncDPOR2 finished");
+                            logger.Information("SyncDPOR2 finished");
+                            break;
+                        case "neuralcontract":
+                            logger.Information("Getting neural contract");
+                            using(var dbContext = GridcoinContext.Create(gridcoinDataDir))
+                            {
+                                var magCalculator = new MagnitudeCalculator(dbContext);
+                                //magCalculator.Logger = logger;
+                                string contract = magCalculator.GenerateContract();
+                                Console.Write(contract);
+                                Environment.Exit(0);
+                            }
                             break;
                         default:
                             Console.WriteLine("ERROR: Invalid command specified. Available commands are -syncdpor2, -neuralcontract or -neuralhash");
