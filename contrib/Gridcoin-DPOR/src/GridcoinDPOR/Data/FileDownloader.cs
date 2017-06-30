@@ -10,9 +10,9 @@ using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
 
-namespace GridcoinDPOR.Util
+namespace GridcoinDPOR.Data
 {
-    public static class WebUtil
+    public class FileDownloader
     {
         private static ILogger _logger = new NullLogger();
         public static ILogger Logger 
@@ -21,11 +21,24 @@ namespace GridcoinDPOR.Util
             set { _logger = value; }
         }
 
-        private static HttpClient _httpClient = new HttpClient();
+        private readonly HttpClient _httpClient;
 
-        public static async Task<bool> DownloadFileAsync(string requestUri, string filePath)
+        public FileDownloader()
         {
-            for (int i = 0; i < 5; i++)
+            _httpClient = new HttpClient();
+            _httpClient.Timeout = TimeSpan.FromSeconds(30);
+        }
+
+        public FileDownloader(ILogger logger)
+        {
+            _logger = logger;
+            _httpClient = new HttpClient();
+            _httpClient.Timeout = TimeSpan.FromSeconds(30);
+        }
+
+        public async Task<bool> DownloadFileAsync(string requestUri, string filePath)
+        {
+            for (int i = 0; i < 1; i++)
             {
                 try
                 {
@@ -51,7 +64,7 @@ namespace GridcoinDPOR.Util
             return false;
         }
 
-        private static async Task<HttpStatusCode> InternalDownloadFileAsync(string requestUri, string filePath)
+        private async Task<HttpStatusCode> InternalDownloadFileAsync(string requestUri, string filePath)
         {
             var filename = Path.GetFileName(filePath);
 

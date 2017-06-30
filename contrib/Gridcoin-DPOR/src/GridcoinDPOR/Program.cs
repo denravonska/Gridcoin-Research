@@ -92,9 +92,7 @@ namespace GridcoinDPOR
                                                       .CreateLogger();
                                                 
                 // assign logger to classes we want logging in
-                // TODO: probably a better way of handling the logging.
-                WebUtil.Logger = logger;
-                //TeamXmlParser.Logger = logger;
+                // TODO: probably a better way of injecting the logging.
                                                    
                 logger.Information("Logging started at [Information] level");
                 
@@ -116,9 +114,9 @@ namespace GridcoinDPOR
                             logger.Information("SyncDPOR2 started");
                             using(var dbContext = GridcoinContext.Create(gridcoinDataDir))
                             {
-                                var dataSynchronizer = new DataSynchronizer(dbContext);
-                                dataSynchronizer.Logger = logger;
-                                await dataSynchronizer.Sync(gridcoinDataDir, commandOption, teamOption);
+                                var fileDownloader = new FileDownloader(logger);
+                                var dataSynchronizer = new DataSynchronizer(logger, dbContext, fileDownloader);
+                                await dataSynchronizer.SyncAsync(gridcoinDataDir, commandOption, teamOption);
                             }
                             logger.Information("SyncDPOR2 finished");
                             break;
@@ -126,10 +124,9 @@ namespace GridcoinDPOR
                             logger.Information("Getting neural contract");
                             using(var dbContext = GridcoinContext.Create(gridcoinDataDir))
                             {
-                                var magCalculator = new MagnitudeCalculator(dbContext);
-                                //magCalculator.Logger = logger;
-                                string contract = magCalculator.GenerateContract();
-                                Console.Write(contract);
+                                //var magCalculator = new MagnitudeCalculator(dbContext);
+                                //string contract = magCalculator.GenerateContract();
+                                Console.Write("");
                                 Environment.Exit(0);
                             }
                             break;

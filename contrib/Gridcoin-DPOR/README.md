@@ -1,8 +1,7 @@
 # Gridcoin DPOR
 A work-in-progress port of the VB.NET Neural Network to .NET Core. The aim of this project is to create a cross-platform version of the existing Neural Network with some added performance improvements and the ability to remove the Gridcoin Team Requirement.
 
-Still TODO: 
-- Calculate mags and store in SQLite database using Dapper mini ORM.
+Still TODO:
 - Implement `GetNeuralContract()`
 - Implement `GetNeuralHash()`
 - Lots of testing.
@@ -10,7 +9,7 @@ Still TODO:
 ## Improvements
 - Code has been stripped back from what is in the original .NET repo.
 - The remote xml files are only downloaded if they have been changed putting less load on the BOINC project servers.
-- The data is now stored in a SQLite database instead of flat files so that the Qt UI can access it.
+- The data is now stored in a SQLite database instead of flat files.
 
 ## Commands available
 Assuming you have installed .NET Core on your platform and built the source code you should be able to run the following commands at the command prompt or terminal.

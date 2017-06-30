@@ -20,6 +20,8 @@ namespace GridcoinDPOR.Data
 {
     public class DataSynchronizer
     {
+        public const double NEURAL_NETWORK_MULTIPLIER = 115000;
+
         private ILogger _logger = new NullLogger();
         public ILogger Logger 
         { 
@@ -28,12 +30,27 @@ namespace GridcoinDPOR.Data
         }
 
         private readonly GridcoinContext _db;
-        public DataSynchronizer(GridcoinContext dbContext)
+        private readonly FileDownloader _fileDownloader;
+
+         public DataSynchronizer(
+             ILogger logger,
+             GridcoinContext dbContext,
+             FileDownloader fileDownloader)
         {
+            _logger = logger;
             _db = dbContext;
+            _fileDownloader = fileDownloader;
         }
 
-        public async Task<bool> Sync(string dataDirectory, string syncDataXml, bool teamOption)
+        public DataSynchronizer(
+            GridcoinContext dbContext,
+            FileDownloader fileDownloader)
+        {
+            _db = dbContext;
+            _fileDownloader = fileDownloader;
+        }
+
+        public async Task SyncAsync(string dataDirectory, string syncDataXml, bool teamOption)
         {
             var dporDir = Path.Combine(dataDirectory, "DPOR");
             var statsDir = Path.Combine(dporDir, "stats");
@@ -43,12 +60,19 @@ namespace GridcoinDPOR.Data
                 Directory.CreateDirectory(statsDir);
             }
 
-            await SyncResearchersAsync(syncDataXml);
-            await SyncProjectsAsync(syncDataXml);
-            await DownloadProjectXmlFilesAsync(statsDir);
-            await AssignGridcoinTeamIdsAsync(statsDir);
-
-            return false;
+            try
+            {
+                await SyncResearchersAsync(syncDataXml);
+                await SyncProjectsAsync(syncDataXml);
+                await DownloadProjectXmlFilesAsync(statsDir);
+                await AssignGridcoinTeamIdsAsync(statsDir);
+                await SyncUserStatsAsync(statsDir);
+                await CalculateMagnitudes();
+            }
+            catch (Exception ex)
+            {
+                _logger.Fatal(ex, "Failed to Sync data");
+            }
         }
 
         private async Task SyncResearchersAsync(string syncDataXml)
@@ -206,10 +230,10 @@ namespace GridcoinDPOR.Data
             _logger.Information("Downloading Team XML files for projects without a Gridcoin Team ID");
             foreach (var project in projects.Where(x => x.TeamId == 0).ToList())
             {
+                string teamGzip = Path.Combine(statsDir, project.GetTeamGzipFilename());
                 foreach (var teamUrl in project.GetTeamUrls())
                 {
-                    string teamGzip = Path.Combine(statsDir, project.GetUserGzipFilename());
-                    bool result = await WebUtil.DownloadFileAsync(teamUrl, teamGzip);
+                    bool result = await _fileDownloader.DownloadFileAsync(teamUrl, teamGzip);
                     if (result)
                     {
                         break;
@@ -220,10 +244,10 @@ namespace GridcoinDPOR.Data
             _logger.Information("Downloading User XML files that are newer than local files in stats");
             foreach (var project in projects)
             {
+                string userGzip = Path.Combine(statsDir, project.GetUserGzipFilename());
                 foreach (var userUrl in project.GetUserUrls())
                 {
-                    string userGzip = Path.Combine(statsDir, project.GetUserGzipFilename());
-                    bool result = await WebUtil.DownloadFileAsync(userUrl, userGzip);
+                    bool result = await _fileDownloader.DownloadFileAsync(userUrl, userGzip);
                     if (result)
                     {
                         break;
@@ -236,7 +260,7 @@ namespace GridcoinDPOR.Data
         {
             var projects = _db.Projects.Where(x => x.TeamId == 0);
 
-            _logger.Information("Searching for Gridcoin TeamID for {0} projects without a TeamID" , projects.Count());
+            _logger.Information("Found: {0} projects without a TeamID. Searching Team XML files" , projects.Count());
 
             var readerSettings = new XmlReaderSettings()
             {
@@ -287,201 +311,188 @@ namespace GridcoinDPOR.Data
             }
         }
         
+        private async Task SyncUserStatsAsync(string statsDir)
+        {
+            var projects = await _db.Projects.ToListAsync();
+            var researchers = await _db.Researchers.ToListAsync();
 
-        // public async Task<bool> SyncDPOR2(string dataDirectory, string syncDataXml, bool teamOption)
-        // {
-        //     var dporDir = Path.Combine(dataDirectory, "DPOR");
-        //     var statsDir = Path.Combine(dporDir, "stats");
+            _logger.Information("Updating researcher stats for: {0} projects" , projects.Count());
+
+            var readerSettings = new XmlReaderSettings()
+            {
+                DtdProcessing = DtdProcessing.Prohibit,
+                IgnoreProcessingInstructions = true,
+                IgnoreWhitespace = true,
+                IgnoreComments = true,
+                Async = true
+            };
+
+            foreach (var project in projects)
+            {
+                var userGzipPath = Path.Combine(statsDir, project.GetUserGzipFilename());
+                if (!File.Exists(userGzipPath))
+                {
+                    _logger.Error("Can't update stats for project: {0} because the user XML file is missing from: {1}", project.Name, userGzipPath);
+                    continue;
+                }
+
+                using (var fileStream = File.OpenRead(userGzipPath))
+                using (var gzipStream = new GZipStream(fileStream, CompressionMode.Decompress))
+                using (var reader = XmlReader.Create(gzipStream, readerSettings))
+                {
+                    _logger.Debug("Opened file: {0} for parsing", userGzipPath);
+                    while (!reader.EOF)
+                    {
+                        if (reader.NodeType == XmlNodeType.Element && reader.Name == "user")
+                        {
+                            string xml = await reader.ReadInnerXmlAsync();
+                            string xmlCpid = XmlUtil.ExtractXml(xml, "cpid");
+
+                            // dont bother writing timestamps older than 32 days since we base mag off of RAC
+                            double xmlExpAvgTime = Convert.ToDouble(XmlUtil.ExtractXml(xml, "expavg_time"));
+                            var dateTime = new DateTime(1970, 1, 1, 0, 0, 0).AddSeconds(xmlExpAvgTime);
+                            double minutes = (DateTime.UtcNow - dateTime).TotalMinutes;
+                            if (minutes > (60 * 24 * 32))
+                            {
+                                continue;
+                            }
+
+                            var researcher = researchers.SingleOrDefault(x => x.CPID == xmlCpid);
+                            if (researcher == null)
+                            {
+                                continue;
+                            }
+
+                            // parse fields and store record
+                            double xmlTotalCredit = Convert.ToDouble(XmlUtil.ExtractXml(xml, "total_credit"));
+                            double xmlRAC = Convert.ToDouble(XmlUtil.ExtractXml(xml, "expavg_credit"));
+                            int xmlProjectUserId = Convert.ToInt32(XmlUtil.ExtractXml(xml, "id"));
+
+                            bool inTeam = false;
+                            string xmlTeamId = XmlUtil.ExtractXml(xml, "teamid");
+                            if (project.TeamId.ToString().Equals(xmlTeamId))
+                            {
+                                inTeam = true;
+                            }
+
+                            var projectResearcher = await _db.ProjectResearcher.SingleOrDefaultAsync(x => x.ProjectId == project.Id && x.ResearcherId == researcher.Id);
+                            if (projectResearcher == null)
+                            {
+                                projectResearcher = new ProjectResearcher()
+                                {
+                                    ProjectId = project.Id,
+                                    ResearcherId = researcher.Id,
+                                    InTeam = inTeam,
+                                    Credit = xmlTotalCredit,
+                                    RAC = xmlRAC,
+                                    WebUserId = xmlProjectUserId,
+                                };
+
+                                _db.ProjectResearcher.Add(projectResearcher);
+                                if (await _db.SaveChangesAsync() > 0)
+                                {
+                                    _logger.Debug("Added stats to project: {0} for researcher with CPID: {1}", project.Name, xmlCpid);
+                                }
+                                else
+                                {
+                                    _logger.Error("Failed to add stats to project: {0} for researcher with CPID: {1}", project.Name, xmlCpid);
+                                }
+                            }
+                            else
+                            {
+                                projectResearcher.InTeam = inTeam;
+                                projectResearcher.Credit = xmlTotalCredit;
+                                projectResearcher.RAC = xmlRAC;
+
+                                if (await _db.SaveChangesAsync() > 0)
+                                {
+                                    _logger.Debug("Updated stats for project: {0} and researcher with CPID: {1}", project.Name, xmlCpid);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            await reader.ReadAsync();
+                        }
+                    }
+                }
+            }
+        }
+          
+        private async Task CalculateMagnitudes()
+        {
+            _logger.Information("Start calculating magnitudes. Clearing previous calculated fields");
+            await _db.Database.ExecuteSqlCommandAsync(string.Format("UPDATE Projects SET {0}=0", nameof(Project.TotalRAC)));
+            await _db.Database.ExecuteSqlCommandAsync(string.Format("UPDATE Projects SET {0}=0", nameof(Project.TeamRAC)));
+            await _db.Database.ExecuteSqlCommandAsync(string.Format("UPDATE Researchers SET {0}=0", nameof(Researcher.TotalMag)));
+            await _db.Database.ExecuteSqlCommandAsync(string.Format("UPDATE Researchers SET {0}=0", nameof(Researcher.TotalMagNTR)));
+            await _db.Database.ExecuteSqlCommandAsync(string.Format("UPDATE ProjectResearcher SET {0}=0", nameof(ProjectResearcher.ProjectMag)));
+            await _db.Database.ExecuteSqlCommandAsync(string.Format("UPDATE ProjectResearcher SET {0}=0", nameof(ProjectResearcher.ProjectMagNTR)));
+            _logger.Information("Finished clearing previous calculated fields");
+
+            _logger.Information("Start calculating Project Total RAC");
+
+            var projects = await _db.Projects.ToListAsync();
+            foreach (var project in projects)
+            {
+                project.TotalRAC = await _db.ProjectResearcher.Where(x => x.ProjectId == project.Id).SumAsync(x => x.RAC);
+                project.TeamRAC = await _db.ProjectResearcher.Where(x => x.ProjectId == project.Id && x.InTeam == true).SumAsync(x => x.RAC);
+            }
+
+            if (await _db.SaveChangesAsync() > 0)
+            {
+                _logger.Information("Finished calculating Project Total RAC and Team RAC");
+            }
+            else
+            {
+                _logger.Error("Failed to calculate Project Total RAC and Team RAC");
+            }
+
+            var researchers = await _db.Researchers
+                                       .Include(x => x.ProjectResearchers)
+                                       .ToListAsync();
+
             
-        //     if (!Directory.Exists(statsDir)) 
-        //     {
-        //         Directory.CreateDirectory(statsDir);
-        //     }
+            foreach(var p in projects)
+            {
+                _logger.Information("Calculating individual magnitudes for researchers on project: {0}", p.Name);
+                foreach(var researcher in researchers)
+                {
+                    var projectResearcher = researcher.ProjectResearchers.SingleOrDefault(x => x.ProjectId == p.Id && x.ResearcherId == researcher.Id && x.RAC > 0);
+                    if (projectResearcher != null)
+                    {
+                        double mag = Math.Round(((projectResearcher.RAC / (p.TeamRAC + 0.01)) / (projects.Count + 0.01)) *  NEURAL_NETWORK_MULTIPLIER, 2);
+                        double magNTR = Math.Round(((projectResearcher.RAC / (p.TotalRAC + 0.01)) / (projects.Count + 0.01)) *  NEURAL_NETWORK_MULTIPLIER, 2);
+                        projectResearcher.ProjectMag = mag;
+                        projectResearcher.ProjectMagNTR = magNTR;
+
+                        researcher.TotalMag += mag;
+                        researcher.TotalMagNTR += magNTR;
+                    }
+
+                    if (researcher.TotalMag < 1 && researcher.TotalMag > 0.25)
+                    {
+                        researcher.TotalMag = 1;
+                    }
+                    else
+                    {
+                        researcher.TotalMag = Math.Round(researcher.TotalMag, 2);
+                    }
+
+                    if (researcher.TotalMagNTR < 1 && researcher.TotalMagNTR > 0.25)
+                    {
+                        researcher.TotalMagNTR = 1;
+                    }
+                    else
+                    {
+                        researcher.TotalMagNTR = Math.Round(researcher.TotalMagNTR, 2);
+                    }
+                }
+                _logger.Information("Finished calculating individual magnitudes for researchers on project: {0}", p.Name);
+            }
             
-        //     try
-        //     {
-        //         // EXTRACT LIST OF WHITELISTED PROJECTS FROM XML DATA
-        //         var syncData = SyncData.Parse(syncDataXml);
-
-        //         //TODO: Delete any projects from the DB that are no longer white-listed
-                
-        //         // DOWNLOAD AND EXTRACT FILES
-        //         foreach(var project in syncData.Whitelist)
-        //         {
-        //             // only search for the Team ID when -noteam is not set in args
-        //             if(teamOption)
-        //             {
-        //                 foreach(var teamUrl in project.GetTeamUrls())
-        //                 {
-        //                     string teamGzip = Path.Combine(statsDir, project.Name.ToLower().Replace(" ", "_") + "_team.gz");
-        //                     bool teamGzipDownloadResult = await WebUtil.DownloadFile(teamUrl, teamGzip);
-        //                     if (teamGzipDownloadResult)
-        //                     {
-        //                         project.TeamId = await TeamXmlParser.GetGridcoinTeamIdAsync(teamGzip);
-        //                         break;
-        //                     }
-        //                     else
-        //                     {
-        //                         _logger.Warning("Failed to download team file from URL: {0}", teamUrl);
-        //                     }
-        //                 }
-        //             }
-
-        //             // get the user file
-        //             foreach(var userUrl in project.GetUserUrls())
-        //             {
-        //                 string userGzip = Path.Combine(statsDir, project.Name.ToLower().Replace(" ", "_") + "_user.gz");
-        //                 bool userGzipDownloadResult = await WebUtil.DownloadFile(userUrl, userGzip);
-        //                 if (userGzipDownloadResult)
-        //                 {
-        //                     _logger.Information("Syncing stats for project: {0}", project.Name);
-        //                     if(await ParseAndStoreUserStats(userGzip, project.Name, project.TeamId, syncData.CpidData))
-        //                     {
-        //                         _logger.Information("Successfully Synchronized stats for project: {0}", project.Name);
-        //                     }
-        //                     break;
-        //                 }
-        //                 else
-        //                 {
-        //                     _logger.Warning("Failed to download user file from URL: {0}", userUrl);
-        //                 }
-        //             }
-        //         }
-
-        //         // not sure if it's worth returning anything?
-        //         return true;
-        //     }
-        //     catch(Exception ex)
-        //     {
-        //         _logger.Fatal("SyncDPOR2 command failed with exception {0}", ex);
-        //         return false;
-        //     }
-        // }
-
-        // private async Task<bool> ParseAndStoreUserStats(string filePath, string projectName, int teamId, IEnumerable<CpidData> beaconCpids)
-        // {
-        //     string filename = Path.GetFileName(filePath);
-        //     var localFileLastModified = File.GetLastAccessTimeUtc(filePath);
-
-        //     // get project from DB
-        //     var project = _db.Projects.Include(x => x.Researchers).SingleOrDefault(x => x.Name.Equals(projectName));
-        //     if (project != null)
-        //     {
-        //         // TODO: delete any researchers from the project that have expired beacons
-        //         // TODO: delete any researchers with RAC time older than 32 days
-
-
-        //         if (project.LastSyncUtc == localFileLastModified)
-        //         {
-        //             _logger.Information("Data for project already up to date. Skipping project {0}", project.Name);
-        //             return true;
-        //         }
-        //     }
-        //     else 
-        //     {
-        //         project = new Project()
-        //         {
-        //             Name = projectName,
-        //         };
-
-        //         _db.Projects.Add(project);
-
-        //         int changes = await _db.SaveChangesAsync();
-        //     }
-            
-        //     var readerSettings = new XmlReaderSettings()
-        //     {
-        //         DtdProcessing = DtdProcessing.Prohibit,
-        //         IgnoreProcessingInstructions = true,
-        //         IgnoreWhitespace = true,
-        //         IgnoreComments = true,
-        //         Async = true
-        //     };
-            
-        //     int researchersFound = 0;
-
-        //     using (var fileStream = File.OpenRead(filePath))
-        //     using (var gzipStream = new GZipStream(fileStream, CompressionMode.Decompress))
-        //     using (var reader = XmlReader.Create(gzipStream, readerSettings))
-        //     {
-        //         _logger.Information("Opened file {0} for parsing", filename);
-        //         while(!reader.EOF)
-        //         {
-        //             if (reader.NodeType == XmlNodeType.Element && reader.Name == "user")
-        //             {
-        //                 string xml = await reader.ReadInnerXmlAsync();
-        //                 string xmlCpid = XmlUtil.ExtractXml(xml, "cpid");
-                        
-        //                 // only extract if this CPID is in the list of beacons
-        //                 if (!beaconCpids.Any(a => a.CPID == xmlCpid))
-        //                 {
-        //                     await reader.ReadAsync();
-        //                     continue;
-        //                 }
-
-        //                 // dont bother writing timestamps older than 32 days since we base mag off of RAC
-        //                 double xmlExpAvgTime = Convert.ToDouble(XmlUtil.ExtractXml(xml, "expavg_time"));
-        //                 var dateTime = new DateTime(1970, 1, 1, 0, 0, 0).AddSeconds(xmlExpAvgTime);
-        //                 double minutes = (DateTime.UtcNow - dateTime).TotalMinutes;
-        //                 if (minutes > (60 * 24 * 32))
-        //                 {
-        //                     await reader.ReadAsync();
-        //                     continue;
-        //                 }
-
-        //                 researchersFound++;
-
-        //                 // parse fields and store record
-        //                 double xmlTotalCredit = Convert.ToDouble(XmlUtil.ExtractXml(xml, "total_credit"));
-        //                 double xmlRAC = Convert.ToDouble(XmlUtil.ExtractXml(xml, "expavg_credit"));
-        //                 int xmlProjectUserId = Convert.ToInt32(XmlUtil.ExtractXml(xml, "id"));
-
-        //                 bool inTeam = false;
-        //                 string xmlTeamId = XmlUtil.ExtractXml(xml, "teamid");
-        //                 if (teamId.ToString().Equals(xmlTeamId))
-        //                 {
-        //                     inTeam = true;
-        //                 }
-
-        //                 var researcher = project.Researchers.SingleOrDefault(x => x.CPID == xmlCpid);
-        //                 if (researcher != null)
-        //                 {
-        //                     // edit Credit and RAC
-        //                     researcher.TotalCredit = xmlTotalCredit;
-        //                     researcher.RAC = xmlRAC;
-        //                     researcher.InTeam = inTeam;
-        //                 }
-        //                 else
-        //                 {
-        //                     // create researcher
-        //                     project.Researchers.Add(new Researcher()
-        //                     {
-        //                         CPID = xmlCpid,
-        //                         TotalCredit = xmlTotalCredit,
-        //                         RAC = xmlRAC,
-        //                         InTeam = inTeam,
-        //                         UserId = xmlProjectUserId,
-        //                     });
-        //                 }
-                        
-        //                 int changes = await _db.SaveChangesAsync();
-        //             }
-        //             else
-        //             {
-        //                 await reader.ReadAsync();
-        //             }
-        //         }
-        //     }
-        
-        //     project.LastSyncUtc = localFileLastModified;
-
-        //     if (await _db.SaveChangesAsync() > 0)
-        //     {
-        //         _logger.Information("Finished parsing file and found: {0} researchers", researchersFound);
-        //         return true;
-        //     }
-
-        //     return false;
-        // }
+            _logger.Information("Finished calculating magnitudes. Researchers: {0} Projects: {1}", researchers.Count, projects.Count);
+            await _db.SaveChangesAsync();
+        }
     }
 }

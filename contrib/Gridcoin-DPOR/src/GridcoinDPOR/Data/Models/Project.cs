@@ -15,6 +15,8 @@ namespace GridcoinDPOR.Data.Models
         public DateTime LastSyncUtc { get; set; }
         public int TeamId { get; set; }
         public ICollection<ProjectResearcher> ProjectResearchers { get; set; }
+        public double TotalRAC { get; set; }
+        public double TeamRAC { get; set; }
 
         public Project()
         {

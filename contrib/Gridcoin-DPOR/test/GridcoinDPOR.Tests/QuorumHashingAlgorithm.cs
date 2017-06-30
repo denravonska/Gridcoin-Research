@@ -7,7 +7,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using GridcoinDPOR.Models;
+using GridcoinDPOR;
 using Xunit;
 
 namespace GridcoinDPOR.Tests
@@ -28,7 +28,7 @@ namespace GridcoinDPOR.Tests
             var hash = quorumHashingAlgo.GetNeuralHash(contactData);
 
             // ASSERT
-            Assert.Equal(expected: "252d46b8ff990dd93130891e8178f943", actual: hash);
+            Assert.Equal(expected: "81211a4d534a68d715fcafe9e628c2d3", actual: hash);
         }
     }
 }

@@ -18,6 +18,7 @@ namespace GridcoinDPOR.Data
     {
         public DbSet<Researcher> Researchers { get; set; }
         public DbSet<Project> Projects { get; set; }
+        public DbSet<ProjectResearcher> ProjectResearcher { get; set; }
 
         public GridcoinContext(DbContextOptions options)
         : base(options)
@@ -41,7 +42,7 @@ namespace GridcoinDPOR.Data
                         .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<ProjectResearcher>()
-                        .HasOne(x => x.Reseracher)
+                        .HasOne(x => x.Researcher)
                         .WithMany(x => x.ProjectResearchers)
                         .HasForeignKey(x => x.ResearcherId)
                         .OnDelete(DeleteBehavior.Cascade);

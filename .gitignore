@@ -41,3 +41,6 @@ qrc_*.cpp
 build
 
 !src/leveldb/Makefile
+/contrib/Installer/UpgradeLog.htm
+/contrib/Installer
+/contrib/Installer/UpgradeLog.htm

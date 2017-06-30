@@ -16,6 +16,7 @@ namespace GridcoinDPOR.Data.Models
         public string Address { get; set; }
         public bool IsValid { get; set; }
         public double TotalMag { get; set; }
+        public double TotalMagNTR { get; set; }
         public ICollection<ProjectResearcher> ProjectResearchers { get; set; }
 
         //TODO: Port this
