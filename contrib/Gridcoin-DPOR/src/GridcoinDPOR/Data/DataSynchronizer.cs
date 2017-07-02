@@ -57,16 +57,24 @@ namespace GridcoinDPOR.Data
             _hashAlgo = new QuorumHashingAlgorithm();
         }
 
-        public async Task SyncAsync(string dataDirectory, string syncDataXml)
+        public async Task SyncAsync(string dataDirectory)
         {
             _dataDirectory = Path.Combine(dataDirectory, "DPOR");
             _downloadsDirectory = Path.Combine(_dataDirectory, "stats");
-            _syncDataXml = syncDataXml;
 
             if (!Directory.Exists(_downloadsDirectory))
             {
                 Directory.CreateDirectory(_downloadsDirectory);
             }
+
+            string syncDataFile = Path.Combine(_dataDirectory, "syncdpor.dat");
+            if (!File.Exists(syncDataFile))
+            {
+                _logger.Fatal("Failed to locate the syncdpor.dat file in the DPOR directory");
+                throw new Exception("Failed to locate syncdpor.dat in the DPOR directory");
+            }
+
+            _syncDataXml = await FileUtil.ReadAllTextAsync(syncDataFile);
 
             try
             {

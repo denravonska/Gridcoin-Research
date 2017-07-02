@@ -22,8 +22,7 @@ namespace GridcoinDPOR
     {
         static void Main(string[] args)
         {
-            // -gridcoindatadir=C:\\Example -syncdpor2=<XML>DATA</XML>
-            // -gridcoindatadir=C:\\Example -syncdpor2 -debug
+            // -gridcoindatadir=C:\\Example -syncdpor2
             // -gridcoindatadir=C:\\Example -neuralhash
             // -gridcoindatadir=C:\\Example -neuralcontract
 
@@ -33,7 +32,6 @@ namespace GridcoinDPOR
                 string commandName = "";
                 string commandOption = "";
                 bool noTeam = false;
-                bool debug = false;
 
                 foreach(var arg in args)
                 {
@@ -60,20 +58,10 @@ namespace GridcoinDPOR
                     {
                         commandName = "neuralhash";
                     }
-                    if (arg.StartsWith("-debug"))
-                    {
-                        debug = true;
-                    }
                     if(arg.StartsWith("-noteam"))
                     {
                         noTeam = true;
                     }
-                }
-
-                // override commandOption when debug is set
-                if (debug && commandName == "syncdpor2")
-                {
-                    commandOption = File.ReadAllText("syncdpor.dat");    
                 }
 
                 if (string.IsNullOrEmpty(gridcoinDataDir))
@@ -128,7 +116,7 @@ namespace GridcoinDPOR
                             {
                                 var fileDownloader = new FileDownloader(logger);
                                 var dataSynchronizer = new DataSynchronizer(logger, dbContext, fileDownloader);
-                                await dataSynchronizer.SyncAsync(gridcoinDataDir, commandOption);
+                                await dataSynchronizer.SyncAsync(gridcoinDataDir);
                             }
                             logger.Information("SyncDPOR2 finished");
                             break;
