@@ -29,8 +29,13 @@ namespace GridcoinDPOR.Data
             set { _logger = value;}
         }
 
+        private string _dataDirectory;
+        private string _downloadsDirectory;
+        private string _syncDataXml;
+
         private readonly GridcoinContext _db;
         private readonly FileDownloader _fileDownloader;
+        private readonly QuorumHashingAlgorithm _hashAlgo;
 
          public DataSynchronizer(
              ILogger logger,
@@ -40,6 +45,7 @@ namespace GridcoinDPOR.Data
             _logger = logger;
             _db = dbContext;
             _fileDownloader = fileDownloader;
+            _hashAlgo = new QuorumHashingAlgorithm();
         }
 
         public DataSynchronizer(
@@ -48,26 +54,30 @@ namespace GridcoinDPOR.Data
         {
             _db = dbContext;
             _fileDownloader = fileDownloader;
+            _hashAlgo = new QuorumHashingAlgorithm();
         }
 
-        public async Task SyncAsync(string dataDirectory, string syncDataXml, bool teamOption)
+        public async Task SyncAsync(string dataDirectory, string syncDataXml)
         {
-            var dporDir = Path.Combine(dataDirectory, "DPOR");
-            var statsDir = Path.Combine(dporDir, "stats");
+            _dataDirectory = Path.Combine(dataDirectory, "DPOR");
+            _downloadsDirectory = Path.Combine(_dataDirectory, "stats");
+            _syncDataXml = syncDataXml;
 
-            if (!Directory.Exists(statsDir))
+            if (!Directory.Exists(_downloadsDirectory))
             {
-                Directory.CreateDirectory(statsDir);
+                Directory.CreateDirectory(_downloadsDirectory);
             }
 
             try
             {
-                await SyncResearchersAsync(syncDataXml);
-                await SyncProjectsAsync(syncDataXml);
-                await DownloadProjectXmlFilesAsync(statsDir);
-                await AssignGridcoinTeamIdsAsync(statsDir);
-                await SyncUserStatsAsync(statsDir);
+                await SyncResearchersAsync();
+                await SyncProjectsAsync();
+                await DownloadProjectXmlFilesAsync();
+                await AssignGridcoinTeamIdsAsync();
+                await SyncUserStatsAsync();
                 await CalculateMagnitudes();
+                await GenerateContract();
+                await GenerateContractNoTeam();
             }
             catch (Exception ex)
             {
@@ -75,10 +85,10 @@ namespace GridcoinDPOR.Data
             }
         }
 
-        private async Task SyncResearchersAsync(string syncDataXml)
+        private async Task SyncResearchersAsync()
         {
             _logger.Information("Syncronizing researchers with local database");
-            var cpidDataXml = XmlUtil.ExtractXml(syncDataXml, "CPIDDATA");
+            var cpidDataXml = XmlUtil.ExtractXml(_syncDataXml, "CPIDDATA");
             var cpidDataRows = cpidDataXml.Split(new string[] { "<ROW>" }, StringSplitOptions.RemoveEmptyEntries);
 
             // TODO: Not sure what this data is?
@@ -113,55 +123,35 @@ namespace GridcoinDPOR.Data
                         };
 
                         _db.Researchers.Add(researcher);
-                        if (await _db.SaveChangesAsync() > 0)
-                        {
-                            _logger.Debug("Added CPID: {0} to db", researcher.CPID);
-                        }
                     }
                     else
                     {
                         researcher.CPIDv2 = cpid2;
                         researcher.BlockHash = blockHash;
                         researcher.Address = address;
-                        if (await _db.SaveChangesAsync() > 0)
-                        {
-                            _logger.Debug("Updated CPID: {0} in db", researcher.CPID);
-                        }
                     }
                 }
             }
 
-            _logger.Information("Successfully Stored: {0} CPIDS", cpids.Count);
+            _logger.Information("Found {0} CPIDS in the sync data XML", cpids.Count);
+            int updated = await _db.SaveChangesAsync();
+            _logger.Debug("{0} changes made to the Researchers table", updated);
 
-            _logger.Information("Searching for researchers with expired beacons to delete");
             var cpidsToDelete = _db.Researchers.Where(x => !cpids.Contains(x.CPID)).ToList();
 
             if (cpidsToDelete.Any())
             {
-                foreach(var cpidToDelete in cpidsToDelete)
-                {
-                    _db.Researchers.Remove(cpidToDelete);
-                    if (await _db.SaveChangesAsync() > 0)
-                    {
-                        _logger.Debug("Deleted CPID: {0} and its related data as beacon has expired", cpidToDelete.CPID);
-                    }
-                    else
-                    {
-                        _logger.Error("Failed to delete CPID: {0} and its releated data", cpidToDelete.CPID);
-                    }
-                }
-                _logger.Information("Finished removing expired researchers with expired beacons");
-            }
-            else
-            {
-                _logger.Information("No expired researcher beacons to delete");
+                _logger.Information("Found {0} researchers with expired beacons to delete", cpidsToDelete.Count);
+                _db.Researchers.RemoveRange(cpidsToDelete);
+                int deleted = await _db.SaveChangesAsync();
+                _logger.Debug("{0} deleted from the Researchers table", deleted);
             }
         }
 
-        private async Task SyncProjectsAsync(string syncDataXml)
+        private async Task SyncProjectsAsync()
         {
             _logger.Information("Syncronizing projects with local database");
-            string whitelistXml = XmlUtil.ExtractXml(syncDataXml, "WHITELIST");
+            string whitelistXml = XmlUtil.ExtractXml(_syncDataXml, "WHITELIST");
             var whitelistRows = whitelistXml.Split(new string[] {"<ROW>"}, StringSplitOptions.RemoveEmptyEntries);
             var projectNames = new List<string>();
 
@@ -183,54 +173,35 @@ namespace GridcoinDPOR.Data
                     };
 
                     _db.Projects.Add(project);
-                    if (await _db.SaveChangesAsync() > 0)
-                    {
-                        _logger.Debug("Added new project: {0} to db", projectName);
-                    }
                 }
                 else
                 {
                     project.Url = projectUrl;
-                    if (await _db.SaveChangesAsync() > 0)
-                    {
-                        _logger.Debug("Updated existing project: {0} in db", projectName);
-                    }
                 }
             }
-            _logger.Information("Successfully Stored: {0} Projects", projectNames.Count);
-            _logger.Information("Searching for none-whitlisted projects to delete");
+
+            _logger.Information("Found {0} Projects in the sync data XML", whitelistRows.Count());
+            int updated = await _db.SaveChangesAsync();
+            _logger.Debug("{0} changes made to the Projects table", updated);
+
             var projectsToDelete = _db.Projects.Where(x => !projectNames.Contains(x.Name)).ToList();
             if (projectsToDelete.Any())
             {
-                _logger.Information("Removing: {0} projects no longer whitelisted from the local database", projectsToDelete.Count);
-                foreach(var projectToDelete in projectsToDelete)
-                {
-                    _db.Projects.Remove(projectToDelete);
-                    if (await _db.SaveChangesAsync() > 0)
-                    {
-                        _logger.Debug("Deleted project: {0} and its related data as no longer in the whitelist", projectToDelete.Name);
-                    }
-                    else
-                    {
-                        _logger.Error("Failed to delete project: {0} and its related data", projectToDelete.Name);
-                    }
-                }
-                _logger.Information("Finished removing projects");
-            }
-            else
-            {
-                _logger.Information("No none-whitlisted projects to delete");
+                _logger.Information("Found {0} projects that need deleted", projectsToDelete.Count);
+                _db.Projects.RemoveRange(projectsToDelete);
+                int deleted = await _db.SaveChangesAsync();
+                _logger.Debug("{0} deleted from the Projects table", deleted);
             }
         }
 
-        private async Task DownloadProjectXmlFilesAsync(string statsDir)
+        private async Task DownloadProjectXmlFilesAsync()
         {
             var projects = await _db.Projects.ToListAsync();
 
             _logger.Information("Downloading Team XML files for projects without a Gridcoin Team ID");
             foreach (var project in projects.Where(x => x.TeamId == 0).ToList())
             {
-                string teamGzip = Path.Combine(statsDir, project.GetTeamGzipFilename());
+                string teamGzip = Path.Combine(_downloadsDirectory, project.GetTeamGzipFilename());
                 foreach (var teamUrl in project.GetTeamUrls())
                 {
                     bool result = await _fileDownloader.DownloadFileAsync(teamUrl, teamGzip);
@@ -244,7 +215,7 @@ namespace GridcoinDPOR.Data
             _logger.Information("Downloading User XML files that are newer than local files in stats");
             foreach (var project in projects)
             {
-                string userGzip = Path.Combine(statsDir, project.GetUserGzipFilename());
+                string userGzip = Path.Combine(_downloadsDirectory, project.GetUserGzipFilename());
                 foreach (var userUrl in project.GetUserUrls())
                 {
                     bool result = await _fileDownloader.DownloadFileAsync(userUrl, userGzip);
@@ -256,7 +227,7 @@ namespace GridcoinDPOR.Data
             }
         }
 
-        private async Task AssignGridcoinTeamIdsAsync(string statsDir)
+        private async Task AssignGridcoinTeamIdsAsync()
         {
             var projects = _db.Projects.Where(x => x.TeamId == 0);
 
@@ -273,7 +244,7 @@ namespace GridcoinDPOR.Data
 
             foreach(var project in projects)
             {
-                var teamGzipPath = Path.Combine(statsDir, project.GetTeamGzipFilename());
+                var teamGzipPath = Path.Combine(_downloadsDirectory, project.GetTeamGzipFilename());
 
                 if (!File.Exists(teamGzipPath))
                 {
@@ -311,7 +282,7 @@ namespace GridcoinDPOR.Data
             }
         }
         
-        private async Task SyncUserStatsAsync(string statsDir)
+        private async Task SyncUserStatsAsync()
         {
             var projects = await _db.Projects.ToListAsync();
             var researchers = await _db.Researchers.ToListAsync();
@@ -329,18 +300,23 @@ namespace GridcoinDPOR.Data
 
             foreach (var project in projects)
             {
-                var userGzipPath = Path.Combine(statsDir, project.GetUserGzipFilename());
+                var userGzipPath = Path.Combine(_downloadsDirectory, project.GetUserGzipFilename());
                 if (!File.Exists(userGzipPath))
                 {
                     _logger.Error("Can't update stats for project: {0} because the user XML file is missing from: {1}", project.Name, userGzipPath);
                     continue;
                 }
 
+                project.LastSyncUtc = File.GetLastAccessTimeUtc(userGzipPath);
+
                 using (var fileStream = File.OpenRead(userGzipPath))
                 using (var gzipStream = new GZipStream(fileStream, CompressionMode.Decompress))
                 using (var reader = XmlReader.Create(gzipStream, readerSettings))
                 {
-                    _logger.Debug("Opened file: {0} for parsing", userGzipPath);
+                    _logger.Debug("Opened the file: {0} for parsing and storing stats inside the database", Path.GetFileName(userGzipPath));
+
+                    int skipped = 0;
+
                     while (!reader.EOF)
                     {
                         if (reader.NodeType == XmlNodeType.Element && reader.Name == "user")
@@ -348,19 +324,23 @@ namespace GridcoinDPOR.Data
                             string xml = await reader.ReadInnerXmlAsync();
                             string xmlCpid = XmlUtil.ExtractXml(xml, "cpid");
 
-                            // dont bother writing timestamps older than 32 days since we base mag off of RAC
-                            double xmlExpAvgTime = Convert.ToDouble(XmlUtil.ExtractXml(xml, "expavg_time"));
-                            var dateTime = new DateTime(1970, 1, 1, 0, 0, 0).AddSeconds(xmlExpAvgTime);
-                            double minutes = (DateTime.UtcNow - dateTime).TotalMinutes;
-                            if (minutes > (60 * 24 * 32))
-                            {
-                                continue;
-                            }
-
                             var researcher = researchers.SingleOrDefault(x => x.CPID == xmlCpid);
                             if (researcher == null)
                             {
                                 continue;
+                            }
+                            else
+                            {
+                                // dont bother writing timestamps older than 32 days since we base mag off of RAC
+                                double xmlExpAvgTime = Convert.ToDouble(XmlUtil.ExtractXml(xml, "expavg_time"));
+                                var dateTime = new DateTime(1970, 1, 1, 0, 0, 0).AddSeconds(xmlExpAvgTime);
+                                double minutes = (project.LastSyncUtc - dateTime).TotalMinutes;
+                                if (minutes > (60 * 24 * 32))
+                                {
+                                    skipped++;
+                                    //_logger.Warning("Skipped storing stats for CPID: {0}", xmlCpid);
+                                    continue;
+                                }
                             }
 
                             // parse fields and store record
@@ -389,25 +369,12 @@ namespace GridcoinDPOR.Data
                                 };
 
                                 _db.ProjectResearcher.Add(projectResearcher);
-                                if (await _db.SaveChangesAsync() > 0)
-                                {
-                                    _logger.Debug("Added stats to project: {0} for researcher with CPID: {1}", project.Name, xmlCpid);
-                                }
-                                else
-                                {
-                                    _logger.Error("Failed to add stats to project: {0} for researcher with CPID: {1}", project.Name, xmlCpid);
-                                }
                             }
                             else
                             {
                                 projectResearcher.InTeam = inTeam;
                                 projectResearcher.Credit = xmlTotalCredit;
                                 projectResearcher.RAC = xmlRAC;
-
-                                if (await _db.SaveChangesAsync() > 0)
-                                {
-                                    _logger.Debug("Updated stats for project: {0} and researcher with CPID: {1}", project.Name, xmlCpid);
-                                }
                             }
                         }
                         else
@@ -415,28 +382,33 @@ namespace GridcoinDPOR.Data
                             await reader.ReadAsync();
                         }
                     }
+
+                    _logger.Debug("Skipped storing stats of {0} CPIDS for project: {1} because of expavg_time > 32 days from Last-Modified time", skipped, project.Name);
+                    int changes = await _db.SaveChangesAsync();
+                    _logger.Debug("Made {0} changes to the ProjectResearchers table", changes);
                 }
             }
         }
           
         private async Task CalculateMagnitudes()
         {
-            _logger.Information("Start calculating magnitudes. Clearing previous calculated fields");
-            await _db.Database.ExecuteSqlCommandAsync(string.Format("UPDATE Projects SET {0}=0", nameof(Project.TotalRAC)));
-            await _db.Database.ExecuteSqlCommandAsync(string.Format("UPDATE Projects SET {0}=0", nameof(Project.TeamRAC)));
-            await _db.Database.ExecuteSqlCommandAsync(string.Format("UPDATE Researchers SET {0}=0", nameof(Researcher.TotalMag)));
-            await _db.Database.ExecuteSqlCommandAsync(string.Format("UPDATE Researchers SET {0}=0", nameof(Researcher.TotalMagNTR)));
-            await _db.Database.ExecuteSqlCommandAsync(string.Format("UPDATE ProjectResearcher SET {0}=0", nameof(ProjectResearcher.ProjectMag)));
-            await _db.Database.ExecuteSqlCommandAsync(string.Format("UPDATE ProjectResearcher SET {0}=0", nameof(ProjectResearcher.ProjectMagNTR)));
-            _logger.Information("Finished clearing previous calculated fields");
-
-            _logger.Information("Start calculating Project Total RAC");
+            _logger.Information("CalculateMagnitudes");
 
             var projects = await _db.Projects.ToListAsync();
             foreach (var project in projects)
             {
-                project.TotalRAC = await _db.ProjectResearcher.Where(x => x.ProjectId == project.Id).SumAsync(x => x.RAC);
-                project.TeamRAC = await _db.ProjectResearcher.Where(x => x.ProjectId == project.Id && x.InTeam == true).SumAsync(x => x.RAC);
+                int projectResearchersCount = await _db.ProjectResearcher.CountAsync(x => x.ProjectId == project.Id);
+
+                double noTeamTotalRAC = await _db.ProjectResearcher.Where(x => x.ProjectId == project.Id).SumAsync(x => x.RAC);
+                double noTeamAvgRAC = (noTeamTotalRAC / (projectResearchersCount + 0.01));
+
+                double teamTotalRAC = await _db.ProjectResearcher.Where(x => x.ProjectId == project.Id && x.InTeam == true).SumAsync(x => x.RAC);
+                double teamAvgRAC = (teamTotalRAC / (projectResearchersCount + 0.01));
+
+                project.NoTeamTotalRAC = noTeamTotalRAC;
+                project.NoTeamAvgRAC = noTeamAvgRAC;
+                project.TeamTotalRAC = teamTotalRAC;
+                project.TeamAvgRAC = teamAvgRAC;
             }
 
             if (await _db.SaveChangesAsync() > 0)
@@ -452,40 +424,50 @@ namespace GridcoinDPOR.Data
                                        .Include(x => x.ProjectResearchers)
                                        .ToListAsync();
 
+            foreach(var researcher in researchers)
+            {
+                researcher.TotalMag = 0;
+                researcher.TotalMagNTR = 0;
+            }
+
+            int projectsCount = projects.Count();
             
             foreach(var p in projects)
             {
                 _logger.Information("Calculating individual magnitudes for researchers on project: {0}", p.Name);
-                foreach(var researcher in researchers)
+                foreach(var r in researchers)
                 {
-                    var projectResearcher = researcher.ProjectResearchers.SingleOrDefault(x => x.ProjectId == p.Id && x.ResearcherId == researcher.Id && x.RAC > 0);
+                    var projectResearcher = r.ProjectResearchers.SingleOrDefault(x => x.ProjectId == p.Id && x.ResearcherId == r.Id && x.RAC > 0);
                     if (projectResearcher != null)
                     {
-                        double mag = Math.Round(((projectResearcher.RAC / (p.TeamRAC + 0.01)) / (projects.Count + 0.01)) *  NEURAL_NETWORK_MULTIPLIER, 2);
-                        double magNTR = Math.Round(((projectResearcher.RAC / (p.TotalRAC + 0.01)) / (projects.Count + 0.01)) *  NEURAL_NETWORK_MULTIPLIER, 2);
-                        projectResearcher.ProjectMag = mag;
-                        projectResearcher.ProjectMagNTR = magNTR;
+                        if (projectResearcher.RAC > 0)
+                        {
+                            double mag = Math.Round(((projectResearcher.RAC / (p.TeamTotalRAC + 0.01)) / (projectsCount + 0.01)) *  NEURAL_NETWORK_MULTIPLIER, 2);
+                            double magNTR = Math.Round(((projectResearcher.RAC / (p.NoTeamTotalRAC + 0.01)) / (projectsCount + 0.01)) *  NEURAL_NETWORK_MULTIPLIER, 2);
+                            projectResearcher.ProjectMag = mag;
+                            projectResearcher.ProjectMagNTR = magNTR;
 
-                        researcher.TotalMag += mag;
-                        researcher.TotalMagNTR += magNTR;
+                            r.TotalMag += mag;
+                            r.TotalMagNTR += magNTR;
+                        }
                     }
 
-                    if (researcher.TotalMag < 1 && researcher.TotalMag > 0.25)
+                    if (r.TotalMag < 1 && r.TotalMag > 0.25)
                     {
-                        researcher.TotalMag = 1;
+                        r.TotalMag = 1;
                     }
                     else
                     {
-                        researcher.TotalMag = Math.Round(researcher.TotalMag, 2);
+                        r.TotalMag = Math.Round(r.TotalMag, 2);
                     }
 
-                    if (researcher.TotalMagNTR < 1 && researcher.TotalMagNTR > 0.25)
+                    if (r.TotalMagNTR < 1 && r.TotalMagNTR > 0.25)
                     {
-                        researcher.TotalMagNTR = 1;
+                        r.TotalMagNTR = 1;
                     }
                     else
                     {
-                        researcher.TotalMagNTR = Math.Round(researcher.TotalMagNTR, 2);
+                        r.TotalMagNTR = Math.Round(r.TotalMagNTR, 2);
                     }
                 }
                 _logger.Information("Finished calculating individual magnitudes for researchers on project: {0}", p.Name);
@@ -493,6 +475,99 @@ namespace GridcoinDPOR.Data
             
             _logger.Information("Finished calculating magnitudes. Researchers: {0} Projects: {1}", researchers.Count, projects.Count);
             await _db.SaveChangesAsync();
+        }
+
+        private async Task GenerateContract()
+        {
+            var researchers = await _db.Researchers.AsNoTracking().ToListAsync();
+
+            var stringBuilder = new StringBuilder();
+            stringBuilder.Append("<MAGNITUDES>");
+
+            foreach(var researcher in researchers)
+            {
+                researcher.IsValid = true;
+                if (researcher.IsValid)
+                {
+                    string cpid = researcher.CPID + "," + Num(researcher.TotalMag) + ";";
+                    if (researcher.TotalMag == 0)
+                    {
+                        cpid = "0,15;";
+                    }
+                    stringBuilder.Append(cpid);
+                }
+                else
+                {
+                    stringBuilder.Append(researcher.CPID + ",00;");
+                }
+            }
+
+            stringBuilder.Append("</MAGNITUDES><QUOTES>btc,0;grc,0;</QUOTES><AVERAGES>");
+
+            var projects = await _db.Projects.OrderBy(x => x.Name).AsNoTracking().ToListAsync();
+
+            foreach(var project in projects)
+            {
+                if (project.TeamAvgRAC > 0)
+                {
+                    stringBuilder.Append(project.Name.ToLower() + "," + Num(project.TeamAvgRAC) + "," + Num(project.TeamTotalRAC) + ";");
+                }
+            }
+
+            stringBuilder.Append("NeuralNetwork,2000000,20000000;</AVERAGES>");
+
+            string contract = stringBuilder.ToString();
+            File.WriteAllText(Path.Combine(_dataDirectory, "contract.dat"), contract);
+        }
+
+        private async Task GenerateContractNoTeam()
+        {
+            var researchers = await _db.Researchers.AsNoTracking().ToListAsync();
+
+            var stringBuilder = new StringBuilder();
+            stringBuilder.Append("<MAGNITUDES>");
+
+            foreach(var researcher in researchers)
+            {
+                researcher.IsValid = true;
+                if (researcher.IsValid)
+                {
+                    string cpid = researcher.CPID + "," + Num(researcher.TotalMagNTR) + ";";
+                    if (researcher.TotalMagNTR == 0)
+                    {
+                        cpid = "0,15;";
+                    }
+                    stringBuilder.Append(cpid);
+                }
+                else
+                {
+                    stringBuilder.Append(researcher.CPID + ",00;");
+                }
+            }
+
+            stringBuilder.Append("</MAGNITUDES><AVERAGES>");
+
+            var projects = await _db.Projects.OrderBy(x => x.Name).AsNoTracking().ToListAsync();
+
+            foreach(var project in projects)
+            {
+                if (project.TeamAvgRAC > 0)
+                {
+                    stringBuilder.Append(project.Name.ToLower() + "," + Num(project.NoTeamAvgRAC) + "," + Num(project.NoTeamTotalRAC) + ";");
+                }
+            }
+
+            stringBuilder.Append("NeuralNetwork,2000000,20000000;</AVERAGES>");
+
+            string contract = stringBuilder.ToString();
+            File.WriteAllText(Path.Combine(_dataDirectory, "contract-noteam.dat"), contract);
+        }
+
+        private string Num(double magnitude)
+        {
+            double dither = _hashAlgo.RoundWithDither(magnitude);
+            string noSep = dither.ToString().Replace(",", ".");
+            return noSep;
         }
     }
 }

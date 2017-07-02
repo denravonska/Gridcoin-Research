@@ -32,11 +32,17 @@ namespace GridcoinDPOR
                 string gridcoinDataDir = "";
                 string commandName = "";
                 string commandOption = "";
-                bool teamOption = true;
+                bool noTeam = false;
                 bool debug = false;
 
                 foreach(var arg in args)
                 {
+                    if (arg.StartsWith("-ping"))
+                    {
+                        Console.WriteLine("PONG");
+                        Environment.Exit(0);
+                    }
+
                     if (arg.StartsWith("-gridcoindatadir"))
                     {
                         gridcoinDataDir = arg.Replace("-gridcoindatadir=", "");
@@ -50,13 +56,17 @@ namespace GridcoinDPOR
                     {
                         commandName = "neuralcontract";
                     }
+                    if (arg.StartsWith("-neuralhash"))
+                    {
+                        commandName = "neuralhash";
+                    }
                     if (arg.StartsWith("-debug"))
                     {
                         debug = true;
                     }
                     if(arg.StartsWith("-noteam"))
                     {
-                        teamOption = false;
+                        noTeam = true;
                     }
                 }
 
@@ -90,6 +100,8 @@ namespace GridcoinDPOR
                 var logger = new LoggerConfiguration().MinimumLevel.ControlledBy(levelSwitch)
                                                       .WriteTo.RollingFile(logPath)
                                                       .CreateLogger();
+
+                var contractGenerator = new Contract(logger);
                                                 
                 // assign logger to classes we want logging in
                 // TODO: probably a better way of injecting the logging.
@@ -116,20 +128,25 @@ namespace GridcoinDPOR
                             {
                                 var fileDownloader = new FileDownloader(logger);
                                 var dataSynchronizer = new DataSynchronizer(logger, dbContext, fileDownloader);
-                                await dataSynchronizer.SyncAsync(gridcoinDataDir, commandOption, teamOption);
+                                await dataSynchronizer.SyncAsync(gridcoinDataDir, commandOption);
                             }
                             logger.Information("SyncDPOR2 finished");
                             break;
+
                         case "neuralcontract":
                             logger.Information("Getting neural contract");
-                            using(var dbContext = GridcoinContext.Create(gridcoinDataDir))
-                            {
-                                //var magCalculator = new MagnitudeCalculator(dbContext);
-                                //string contract = magCalculator.GenerateContract();
-                                Console.Write("");
-                                Environment.Exit(0);
-                            }
+                            string contract = await contractGenerator.GetContract(gridcoinDataDir, noTeam);
+                            Console.Write(contract);
+                            Environment.Exit(0);
                             break;
+
+                        case "neuralhash":
+                            logger.Information("Getting neural hash");
+                            string hash = await contractGenerator.GetNeuralHash(gridcoinDataDir, noTeam);
+                            Console.Write(hash);
+                            Environment.Exit(0);
+                            break;
+
                         default:
                             Console.WriteLine("ERROR: Invalid command specified. Available commands are -syncdpor2, -neuralcontract or -neuralhash");
                             Environment.Exit(-1);
@@ -140,7 +157,7 @@ namespace GridcoinDPOR
             }
             catch(Exception ex)
             {
-                Console.WriteLine("ERROR: {0}", ex);
+                Console.WriteLine("ERROR: {0}", ex.Message);
                 Environment.Exit(-1);
             }
         }

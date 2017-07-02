@@ -18,6 +18,12 @@ namespace GridcoinDPOR
             _ditherConstants = ".8,.2,.1,.025,.006,.003,.0015,.0007".Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries);   
         }
 
+        public double RoundWithDither(double number)
+        {
+            double dither = Math.Round(Math.Round(number * GetDitheringMag(number), 0) / GetDitheringMag(number), 2);
+            return dither;
+        }
+
         public double GetDitheringMag(double data)
         {
             double dither = 0.1;

@@ -2,8 +2,7 @@
 A work-in-progress port of the VB.NET Neural Network to .NET Core. The aim of this project is to create a cross-platform version of the existing Neural Network with some added performance improvements and the ability to remove the Gridcoin Team Requirement.
 
 Still TODO:
-- Implement `GetNeuralContract()`
-- Implement `GetNeuralHash()`
+- C++ Bridge
 - Lots of testing.
 
 ## Improvements
@@ -21,17 +20,23 @@ This command downloads all the BOINC project files and calculates magnitudes sto
 dotnet GridcoinDPOR.dll -gridcoindatadir=C:\\Users\\3ullShark\\AppData\\Roaming\\GridcoinResearch -syncdpor2=SYNCDATAXML
 ```
 
-TODO: add `-noteam` option to the `-syncdpor2` command to remove the team requirement.
-
 ### NeuralHash
-This command gets the neural hash of the downloaded magnitude data.
+This command gets the neural hash of the calculated magnitude contract. 
 
-TODO: Still not implemented
+```bash
+gridcoindpor -gridcoindatadir=C:\\Users\\3ullShark\\AppData\\Roaming\\GridcoinResearch -neuralhash
+```
+
+Adding the `-noteam` switch will get the neural hash of the contract containing calculations without the Gridcoin team requirement.
 
 ### NeuralContract
-This command gets the neural contract of the downloaded magnitude data.
+This command gets the calculated magnitude contract. 
 
-TODO: Still not implemented
+```bash
+gridcoindpor -gridcoindatadir=C:\\Users\\3ullShark\\AppData\\Roaming\\GridcoinResearch -neuralcontract
+```
+
+Adding the `-noteam` switch will get the the contract containing calculations without the Gridcoin team requirement.
 
 ## How to Build the Source
 With .NET Core being cross-platform it's possible to develop on Windows, Linux and Mac and build the source on any platform. It is recommended you use the free cross-platform editor called [Visual Studio Code][1] to make changes.
