@@ -122,7 +122,7 @@ namespace GridcoinDPOR
                     switch(commandName)
                     {
                         case "syncdpor2":
-                            Console.Write("1");
+                            Console.WriteLine("1");
                             logger.Information("SyncDPOR2 started");
                             using(var dbContext = GridcoinContext.Create(gridcoinDataDir))
                             {
@@ -136,15 +136,13 @@ namespace GridcoinDPOR
                         case "neuralcontract":
                             logger.Information("Getting neural contract");
                             string contract = await contractGenerator.GetContract(gridcoinDataDir, noTeam);
-                            Console.Write(contract);
-                            Environment.Exit(0);
+                            Console.WriteLine(contract);
                             break;
 
                         case "neuralhash":
                             logger.Information("Getting neural hash");
                             string hash = await contractGenerator.GetNeuralHash(gridcoinDataDir, noTeam);
-                            Console.Write(hash);
-                            Environment.Exit(0);
+                            Console.WriteLine(hash);
                             break;
 
                         default:
