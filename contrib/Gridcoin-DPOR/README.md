@@ -3,21 +3,29 @@ A work-in-progress port of the VB.NET Neural Network to .NET Core. The aim of th
 
 Still TODO:
 - C++ Bridge
+- Only process stats if beacon data or Last-Modified on a stats file has changed.
 - Lots of testing.
 
 ## Improvements
+- The Team Requirement has been removed when running commands with the `-noteam` switch. 
 - Code has been stripped back from what is in the original .NET repo.
 - The remote xml files are only downloaded if they have been changed putting less load on the BOINC project servers.
 - The data is now stored in a SQLite database instead of flat files.
+- CPIDS are only stored in the DB if they exist in the beacon data.
+- CPIDS are filtered by > 32 days via Last-Modified in the XML file header instead of local time. 
+- Neural Hashes of distributed nodes should match more often.
+- When a project fails to download stats the magnitudes of users in other projects will no longer rise.
+- Project stats are downloaded more often than 24 hours because of how frequent they can change. The Last-Modified header is used to determine if the full data of the file should be downloaded.
+- Stored data is never cleaned our and started from scratch. The differences are changed when a stats file is newer and then magnitudes are re-calculated. This reduces IO on the system.
 
 ## Commands available
-Assuming you have installed .NET Core on your platform and built the source code you should be able to run the following commands at the command prompt or terminal.
+Here is the list of commands available when the binary is built as a self-contained app named `gridcoindpor`
 
 ### SyncDPOR
 This command downloads all the BOINC project files and calculates magnitudes storing them in the **/GridcoinResearch/DPOR/db.sqlite** folder.
 
 ```bash
-dotnet GridcoinDPOR.dll -gridcoindatadir=C:\\Users\\3ullShark\\AppData\\Roaming\\GridcoinResearch -syncdpor2=SYNCDATAXML
+gridcoindpor -gridcoindatadir=C:\\Users\\3ullShark\\AppData\\Roaming\\GridcoinResearch -syncdpor2=SYNCDATAXML
 ```
 
 ### NeuralHash
@@ -43,19 +51,26 @@ With .NET Core being cross-platform it's possible to develop on Windows, Linux a
 
 Before you begin you will need to install the .NET Core SDK for your platform. Head over to the [.NET Core website][3] to find out how.
 
-You can build the source in Visual Studio Code by pressing <kbd>CTRL</kbd>+<kbd>SHIFT</kbd>+<kbd>B</kbd>
-
-To build a release that can be copied into the GridcoinResearch program folder navigate to the **/src/GridcoinDPOR** folder and then run the following at the command prompt:
+To build a self-contained executable (`gridcoindpor`) that can be copied into the GridcoinResearch program folder navigate to the **/src/GridcoinDPOR** folder and then run the following at the command prompt:
 
 ```bash
 dotnet restore
-dotnet publish -c Release
+dotnet build
+dotnet publish -c Release -r [RuntimeIdentifier]
 ```
 
-This will copy the files to **/src/GridcounDPOR/bin/Release/publish** folder.
+**Note: replace [RuntimeIdentifier] with one of the target applications specified in `<RuntimeIdentifiers>` of the GridcoinDPOR.csproj file.
+
+For example to cross-compile a Linux binary from another OS run the following:
+
+```bash
+dotnet publish -c Release -r ubuntu.16.04-x64
+```
+
+This will copy the files to **/src/GridcounDPOR/bin/Release/netcoreapp1.1/[RuntimeIdentifier]/publish** folder.
 
 ## How to Debug
-In order to step through the code with the deubugger in Visual Studio Code you will need to do the following.
+In order to step through the code with the debugger in Visual Studio Code you will need to do the following.
 
 **Step 1:** Modify the **launch.json** file located in the **.vscode** directory so that the `args` field has the path to your GridcoinResearch data folder and the command you want to run. For example. 
 
