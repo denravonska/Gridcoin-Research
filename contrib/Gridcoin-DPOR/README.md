@@ -16,7 +16,7 @@ Still TODO:
 - Neural Hashes of distributed nodes should match more often.
 - When a project fails to download stats the magnitudes of users in other projects will no longer rise.
 - Project stats are downloaded more often than 24 hours because of how frequent they can change. The Last-Modified header is used to determine if the full data of the file should be downloaded.
-- Stored data is never cleaned our and started from scratch. The differences are changed when a stats file is newer and then magnitudes are re-calculated. This reduces IO on the system.
+- Stored data is never cleaned out and started from scratch. The differences are changed when a stats file is newer and then magnitudes are re-calculated. This reduces IO on the system.
 
 ## Commands available
 Here is the list of commands available when the binary is built as a self-contained app named `gridcoindpor`
@@ -59,7 +59,7 @@ dotnet build
 dotnet publish -c Release -r [RuntimeIdentifier]
 ```
 
-**Note: replace [RuntimeIdentifier] with one of the target applications specified in `<RuntimeIdentifiers>` of the GridcoinDPOR.csproj file.
+*Note: replace [RuntimeIdentifier] with one of the target applications specified in `<RuntimeIdentifiers>` of the GridcoinDPOR.csproj file. If you want to add more RuntimeIdentifiers so that the source can be built for other platforms checkout the [available RIDS here][RIDS]. Just append them to the string and then compile using the method below.*
 
 For example to cross-compile a Linux binary from another OS run the following:
 
@@ -126,12 +126,14 @@ int main()
 ```
 
 ## Getting Help
-Leave an issue or contact BullShark in the official [#gridcoin][2] channel on IRC for any development related questions.
+Contact BullShark in the official [#gridcoin][2] channel on IRC for any development related questions.
 
 ## License
-© The Gridcoin Developers, 2017 Licensed under an [MIT License](/LICENSE).
+© The Gridcoin Developers, 2017 Licensed under an [MIT License](/https://github.com/3ullShark/Gridcoin-Research/blob/dotnetcore/contrib/Gridcoin-DPOR/LICENSE.md).
 
 [1]: https://code.visualstudio.com/
 [2]: https://kiwiirc.com/client/irc.freenode.net:6667/#gridcoin
 [3]: https://www.microsoft.com/net/core#linuxdebian
+
+[RIDS]: https://github.com/dotnet/docs/blob/master/docs/core/rid-catalog.md#linux-rids
 
