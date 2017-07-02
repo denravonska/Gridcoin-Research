@@ -510,7 +510,7 @@ namespace GridcoinDPOR.Data
             {
                 if (project.TeamAvgRAC > 0)
                 {
-                    stringBuilder.Append(project.Name.ToLower() + "," + Num(project.TeamAvgRAC) + "," + Num(project.TeamTotalRAC) + ";");
+                    stringBuilder.Append(project.GetNameForContract() + "," + Num(project.TeamAvgRAC) + "," + Num(project.TeamTotalRAC) + ";");
                 }
             }
 
@@ -553,7 +553,7 @@ namespace GridcoinDPOR.Data
             {
                 if (project.TeamAvgRAC > 0)
                 {
-                    stringBuilder.Append(project.Name.ToLower() + "," + Num(project.NoTeamAvgRAC) + "," + Num(project.NoTeamTotalRAC) + ";");
+                    stringBuilder.Append(project.GetNameForContract() + "," + Num(project.NoTeamAvgRAC) + "," + Num(project.NoTeamTotalRAC) + ";");
                 }
             }
 

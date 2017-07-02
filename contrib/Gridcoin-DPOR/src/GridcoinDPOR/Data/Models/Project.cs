@@ -22,7 +22,12 @@ namespace GridcoinDPOR.Data.Models
 
         public Project()
         {
-        //    Researchers = new List<Researcher>();
+        }
+
+        public string GetNameForContract()
+        {
+            string name = Name.ToLower().Replace("_", " ");
+            return name;
         }
 
         public string GetTeamGzipFilename()
