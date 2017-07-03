@@ -32,6 +32,7 @@ namespace GridcoinDPOR.Data
         private string _dataDirectory;
         private string _downloadsDirectory;
         private string _syncDataXml;
+        private bool _beaconDataChanged;
 
         private readonly GridcoinContext _db;
         private readonly FileDownloader _fileDownloader;
@@ -142,18 +143,21 @@ namespace GridcoinDPOR.Data
             }
 
             _logger.Information("Found {0} CPIDS in the sync data XML", cpids.Count);
-            int updated = await _db.SaveChangesAsync();
-            _logger.Debug("{0} changes made to the Researchers table", updated);
 
             var cpidsToDelete = _db.Researchers.Where(x => !cpids.Contains(x.CPID)).ToList();
-
             if (cpidsToDelete.Any())
             {
                 _logger.Information("Found {0} researchers with expired beacons to delete", cpidsToDelete.Count);
                 _db.Researchers.RemoveRange(cpidsToDelete);
-                int deleted = await _db.SaveChangesAsync();
-                _logger.Debug("{0} deleted from the Researchers table", deleted);
             }
+
+            int changes = await _db.SaveChangesAsync();
+            if (changes > 0)
+            {
+                _beaconDataChanged = true;
+            }
+
+            _logger.Debug("{0} changes made to the Researchers table", changes);
         }
 
         private async Task SyncProjectsAsync()
@@ -188,18 +192,22 @@ namespace GridcoinDPOR.Data
                 }
             }
 
-            _logger.Information("Found {0} Projects in the sync data XML", whitelistRows.Count());
-            int updated = await _db.SaveChangesAsync();
-            _logger.Debug("{0} changes made to the Projects table", updated);
+            _logger.Information("Found {0} white-listed Projects in the sync data XML", whitelistRows.Count());
 
             var projectsToDelete = _db.Projects.Where(x => !projectNames.Contains(x.Name)).ToList();
             if (projectsToDelete.Any())
             {
                 _logger.Information("Found {0} projects that need deleted", projectsToDelete.Count);
                 _db.Projects.RemoveRange(projectsToDelete);
-                int deleted = await _db.SaveChangesAsync();
-                _logger.Debug("{0} deleted from the Projects table", deleted);
             }
+
+            int changes = await _db.SaveChangesAsync();
+            if (changes > 0)
+            {
+                _beaconDataChanged = true;
+            }
+
+            _logger.Debug("{0} changes made to the Projects table", changes);
         }
 
         private async Task DownloadProjectXmlFilesAsync()
@@ -315,7 +323,16 @@ namespace GridcoinDPOR.Data
                     continue;
                 }
 
-                project.LastSyncUtc = File.GetLastAccessTimeUtc(userGzipPath);
+                var lastModified = File.GetLastAccessTimeUtc(userGzipPath);
+                if (lastModified == project.LastSyncUtc && _beaconDataChanged == false)
+                {
+                    _logger.Information("Skipping parsing of stats for project: {0} because new XML file is the same age and the beacon data has not changed", project.Name);
+                    continue;
+                }
+
+                _logger.Information("Syncing stats for project: {0} with XML file Last-Modified: {1}", project.Name, lastModified);
+
+                project.LastSyncUtc = lastModified;
 
                 using (var fileStream = File.OpenRead(userGzipPath))
                 using (var gzipStream = new GZipStream(fileStream, CompressionMode.Decompress))
@@ -410,7 +427,11 @@ namespace GridcoinDPOR.Data
           
         private async Task CalculateMagnitudes()
         {
-            _logger.Information("CalculateMagnitudes");
+            _logger.Information("Calculating Project Averages");
+            if (_beaconDataChanged == false)
+            {
+                _logger.Information("Skipping calculation of averages and magnitudes because beacon data has not changed");
+            }
 
             var projects = await _db.Projects.ToListAsync();
             foreach (var project in projects)
@@ -429,14 +450,8 @@ namespace GridcoinDPOR.Data
                 project.TeamAvgRAC = teamAvgRAC;
             }
 
-            if (await _db.SaveChangesAsync() > 0)
-            {
-                _logger.Information("Finished calculating Project Total RAC and Team RAC");
-            }
-            else
-            {
-                _logger.Error("Failed to calculate Project Total RAC and Team RAC");
-            }
+            await _db.SaveChangesAsync();
+            _logger.Information("Finished calculating Averages");
 
             var researchers = await _db.Researchers
                                        .Include(x => x.ProjectResearchers)
@@ -448,11 +463,12 @@ namespace GridcoinDPOR.Data
                 researcher.TotalMagNTR = 0;
             }
 
+            _logger.Information("Calculating Magnitudes");
             int projectsCount = projects.Count();
-            
+
             foreach(var p in projects)
             {
-                _logger.Information("Calculating individual magnitudes for researchers on project: {0}", p.Name);
+                _logger.Debug("Calculating individual magnitudes for researchers on project: {0}", p.Name);
                 foreach(var r in researchers)
                 {
                     var projectResearcher = r.ProjectResearchers.SingleOrDefault(x => x.ProjectId == p.Id && x.ResearcherId == r.Id && x.RAC > 0);
@@ -488,16 +504,23 @@ namespace GridcoinDPOR.Data
                         r.TotalMagNTR = Math.Round(r.TotalMagNTR, 2);
                     }
                 }
-                _logger.Information("Finished calculating individual magnitudes for researchers on project: {0}", p.Name);
             }
             
-            _logger.Information("Finished calculating magnitudes. Researchers: {0} Projects: {1}", researchers.Count, projects.Count);
             await _db.SaveChangesAsync();
+            _logger.Information("Finished calculating magnitudes. Researchers: {0} Projects: {1}", researchers.Count, projects.Count);
         }
 
         private async Task GenerateContract()
         {
+            string contractPath = Path.Combine(Path.Combine(_dataDirectory, "contract.dat"));
+            if (File.Exists(contractPath) && _beaconDataChanged == false)
+            {
+                _logger.Information("Skipping generation of the contract.dat file because it already exists and the beacon data has not changed");
+                return;
+            }
+
             var researchers = await _db.Researchers.AsNoTracking().ToListAsync();
+            _logger.Information("Generating contract.dat for {0} researchers", researchers.Count);
 
             var stringBuilder = new StringBuilder();
             stringBuilder.Append("<MAGNITUDES>");
@@ -535,12 +558,20 @@ namespace GridcoinDPOR.Data
             stringBuilder.Append("NeuralNetwork,2000000,20000000;</AVERAGES>");
 
             string contract = stringBuilder.ToString();
-            File.WriteAllText(Path.Combine(_dataDirectory, "contract.dat"), contract);
+            File.WriteAllText(contractPath, contract);
         }
 
         private async Task GenerateContractNoTeam()
         {
+            string contractPath = Path.Combine(Path.Combine(_dataDirectory, "contract-noteam.dat"));
+            if (File.Exists(contractPath) && _beaconDataChanged == false)
+            {
+                _logger.Information("Skipping generation of the contract-noteam.dat file because it already exists and the beacon data has not changed");
+                return;
+            }
+
             var researchers = await _db.Researchers.AsNoTracking().ToListAsync();
+            _logger.Information("Generating contract-noteam.dat for {0} researchers", researchers.Count);
 
             var stringBuilder = new StringBuilder();
             stringBuilder.Append("<MAGNITUDES>");
@@ -578,7 +609,7 @@ namespace GridcoinDPOR.Data
             stringBuilder.Append("NeuralNetwork,2000000,20000000;</AVERAGES>");
 
             string contract = stringBuilder.ToString();
-            File.WriteAllText(Path.Combine(_dataDirectory, "contract-noteam.dat"), contract);
+            File.WriteAllText(contractPath, contract);
         }
 
         private string Num(double magnitude)
