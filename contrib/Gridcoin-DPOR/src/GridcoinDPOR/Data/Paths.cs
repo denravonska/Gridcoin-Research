@@ -41,6 +41,11 @@ namespace GridcoinDPOR.Data
             {
                 Directory.CreateDirectory(RootFolder);
             }
+
+            if (!Directory.Exists(DownloadsFolder))
+            {
+                Directory.CreateDirectory(DownloadsFolder);
+            }
         }
     }
 }
