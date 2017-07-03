@@ -25,20 +25,22 @@ namespace GridcoinDPOR
             set { _logger = value;}
         }
 
+        private readonly Paths _paths;
         private readonly QuorumHashingAlgorithm _quorumHashingAlg;
 
         public Contract(
-            ILogger logger)
+            ILogger logger,
+            Paths paths)
         {
             _logger = logger;
+            _paths = paths;
             _quorumHashingAlg = new QuorumHashingAlgorithm();
         }
 
-        public async Task<string> GetContract(string gridcoinDataDir, bool noTeam)
+        public async Task<string> GetContract(bool noTeam)
         {
-            string dataDirectory = Path.Combine(gridcoinDataDir, "DPOR");
-            string contractFilePath = Path.Combine(dataDirectory, "contract.dat");
-            string contractNoTeamFilePath = Path.Combine(dataDirectory, "contract-noteam.dat");
+            string contractFilePath = Path.Combine(_paths.RootFolder, "contract.dat");
+            string contractNoTeamFilePath = Path.Combine(_paths.RootFolder, "contract-noteam.dat");
 
             if (noTeam)
             {
@@ -60,9 +62,9 @@ namespace GridcoinDPOR
             return "";
         }
 
-        public async Task<string> GetNeuralHash(string gridcoinDataDir, bool noTeam)
+        public async Task<string> GetNeuralHash(bool noTeam)
         {
-            var contract = await GetContract(gridcoinDataDir, noTeam);
+            var contract = await GetContract(noTeam);
             if (contract == "")
             {
                 return "d41d8cd98f00b204e9800998ecf8427e";

@@ -32,6 +32,7 @@ namespace GridcoinDPOR
                 string commandName = "";
                 string commandOption = "";
                 bool noTeam = false;
+                bool testnet = false;
 
                 foreach(var arg in args)
                 {
@@ -62,6 +63,10 @@ namespace GridcoinDPOR
                     {
                         noTeam = true;
                     }
+                    if(arg.StartsWith("-testnet"))
+                    {
+                        testnet = true;
+                    }
                 }
 
                 if (string.IsNullOrEmpty(gridcoinDataDir))
@@ -83,13 +88,16 @@ namespace GridcoinDPOR
                     Environment.Exit(-1);
                 }
 
-                var logPath = Path.Combine(gridcoinDataDir, "DPOR", "logs", "debug-{Date}.log");
+                var paths = new Paths();
+                paths.SetDataPaths(gridcoinDataDir, testnet);
+
+
                 var levelSwitch = new LoggingLevelSwitch();
                 var logger = new LoggerConfiguration().MinimumLevel.ControlledBy(levelSwitch)
-                                                      .WriteTo.RollingFile(logPath)
+                                                      .WriteTo.RollingFile(paths.LogFilePath)
                                                       .CreateLogger();
 
-                var contractGenerator = new Contract(logger);
+                var contract = new Contract(logger, paths);
                                                 
                 // assign logger to classes we want logging in
                 // TODO: probably a better way of injecting the logging.
@@ -112,10 +120,10 @@ namespace GridcoinDPOR
                         case "syncdpor2":
                             Console.WriteLine("1");
                             logger.Information("SyncDPOR2 started");
-                            using(var dbContext = GridcoinContext.Create(gridcoinDataDir))
+                            using(var dbContext = GridcoinContext.Create(paths))
                             {
                                 var fileDownloader = new FileDownloader(logger);
-                                var dataSynchronizer = new DataSynchronizer(logger, dbContext, fileDownloader);
+                                var dataSynchronizer = new DataSynchronizer(logger, paths, dbContext, fileDownloader);
                                 await dataSynchronizer.SyncAsync(gridcoinDataDir);
                             }
                             logger.Information("SyncDPOR2 finished");
@@ -123,13 +131,13 @@ namespace GridcoinDPOR
 
                         case "neuralcontract":
                             logger.Information("Getting neural contract");
-                            string contract = await contractGenerator.GetContract(gridcoinDataDir, noTeam);
-                            Console.WriteLine(contract);
+                            string contractData = await contract.GetContract(noTeam);
+                            Console.WriteLine(contractData);
                             break;
 
                         case "neuralhash":
                             logger.Information("Getting neural hash");
-                            string hash = await contractGenerator.GetNeuralHash(gridcoinDataDir, noTeam);
+                            string hash = await contract.GetNeuralHash(noTeam);
                             Console.WriteLine(hash);
                             break;
 

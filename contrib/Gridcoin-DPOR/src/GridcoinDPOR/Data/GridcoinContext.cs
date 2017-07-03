@@ -48,13 +48,10 @@ namespace GridcoinDPOR.Data
                         .OnDelete(DeleteBehavior.Cascade);
         }
 
-        public static GridcoinContext Create(string dataDirectory)
+        public static GridcoinContext Create(Paths paths)
         {
-            //TODO: Handle testnet DIR
-            var dporDir = Path.Combine(dataDirectory, "DPOR");
-            var dbPath = Path.Combine(dporDir, "db.sqlite");
             var optionsBuilder = new DbContextOptionsBuilder<GridcoinContext>();
-            optionsBuilder.UseSqlite(string.Format("Filename={0}", dbPath));
+            optionsBuilder.UseSqlite(string.Format("Filename={0}", paths.DatabasePath));
             var db = new GridcoinContext(optionsBuilder.Options);
             db.Database.EnsureCreated();
             return db;

@@ -29,30 +29,22 @@ namespace GridcoinDPOR.Data
             set { _logger = value;}
         }
 
-        private string _dataDirectory;
-        private string _downloadsDirectory;
         private string _syncDataXml;
         private bool _beaconDataChanged;
 
         private readonly GridcoinContext _db;
         private readonly FileDownloader _fileDownloader;
         private readonly QuorumHashingAlgorithm _hashAlgo;
+        private readonly Paths _paths;
 
          public DataSynchronizer(
              ILogger logger,
+             Paths paths,
              GridcoinContext dbContext,
              FileDownloader fileDownloader)
         {
             _logger = logger;
-            _db = dbContext;
-            _fileDownloader = fileDownloader;
-            _hashAlgo = new QuorumHashingAlgorithm();
-        }
-
-        public DataSynchronizer(
-            GridcoinContext dbContext,
-            FileDownloader fileDownloader)
-        {
+            _paths = paths;
             _db = dbContext;
             _fileDownloader = fileDownloader;
             _hashAlgo = new QuorumHashingAlgorithm();
@@ -60,15 +52,7 @@ namespace GridcoinDPOR.Data
 
         public async Task SyncAsync(string dataDirectory)
         {
-            _dataDirectory = Path.Combine(dataDirectory, "DPOR");
-            _downloadsDirectory = Path.Combine(_dataDirectory, "stats");
-
-            if (!Directory.Exists(_downloadsDirectory))
-            {
-                Directory.CreateDirectory(_downloadsDirectory);
-            }
-
-            string syncDataFile = Path.Combine(_dataDirectory, "syncdpor.dat");
+            string syncDataFile = Path.Combine(_paths.RootFolder, "syncdpor.dat");
             if (!File.Exists(syncDataFile))
             {
                 _logger.Fatal("Failed to locate the syncdpor.dat file in the DPOR directory");
@@ -217,7 +201,7 @@ namespace GridcoinDPOR.Data
             _logger.Information("Downloading Team XML files for projects without a Gridcoin Team ID");
             foreach (var project in projects.Where(x => x.TeamId == 0).ToList())
             {
-                string teamGzip = Path.Combine(_downloadsDirectory, project.GetTeamGzipFilename());
+                string teamGzip = Path.Combine(_paths.DownloadsFolder, project.GetTeamGzipFilename());
                 foreach (var teamUrl in project.GetTeamUrls())
                 {
                     bool result = await _fileDownloader.DownloadFileAsync(teamUrl, teamGzip);
@@ -231,7 +215,7 @@ namespace GridcoinDPOR.Data
             _logger.Information("Downloading User XML files that are newer than local files in stats");
             foreach (var project in projects)
             {
-                string userGzip = Path.Combine(_downloadsDirectory, project.GetUserGzipFilename());
+                string userGzip = Path.Combine(_paths.DownloadsFolder, project.GetUserGzipFilename());
                 foreach (var userUrl in project.GetUserUrls())
                 {
                     bool result = await _fileDownloader.DownloadFileAsync(userUrl, userGzip);
@@ -260,7 +244,7 @@ namespace GridcoinDPOR.Data
 
             foreach(var project in projects)
             {
-                var teamGzipPath = Path.Combine(_downloadsDirectory, project.GetTeamGzipFilename());
+                var teamGzipPath = Path.Combine(_paths.DownloadsFolder, project.GetTeamGzipFilename());
 
                 if (!File.Exists(teamGzipPath))
                 {
@@ -316,7 +300,7 @@ namespace GridcoinDPOR.Data
 
             foreach (var project in projects)
             {
-                var userGzipPath = Path.Combine(_downloadsDirectory, project.GetUserGzipFilename());
+                var userGzipPath = Path.Combine(_paths.DownloadsFolder, project.GetUserGzipFilename());
                 if (!File.Exists(userGzipPath))
                 {
                     _logger.Error("Can't update stats for project: {0} because the user XML file is missing from: {1}", project.Name, userGzipPath);
@@ -512,7 +496,7 @@ namespace GridcoinDPOR.Data
 
         private async Task GenerateContract()
         {
-            string contractPath = Path.Combine(Path.Combine(_dataDirectory, "contract.dat"));
+            string contractPath = Path.Combine(Path.Combine(_paths.RootFolder, "contract.dat"));
             if (File.Exists(contractPath) && _beaconDataChanged == false)
             {
                 _logger.Information("Skipping generation of the contract.dat file because it already exists and the beacon data has not changed");
@@ -563,7 +547,7 @@ namespace GridcoinDPOR.Data
 
         private async Task GenerateContractNoTeam()
         {
-            string contractPath = Path.Combine(Path.Combine(_dataDirectory, "contract-noteam.dat"));
+            string contractPath = Path.Combine(Path.Combine(_paths.RootFolder, "contract-noteam.dat"));
             if (File.Exists(contractPath) && _beaconDataChanged == false)
             {
                 _logger.Information("Skipping generation of the contract-noteam.dat file because it already exists and the beacon data has not changed");
