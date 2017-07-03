@@ -346,7 +346,17 @@ namespace GridcoinDPOR.Data
                                 if (minutes > (60 * 24 * 32))
                                 {
                                     skipped++;
-                                    //_logger.Warning("Skipped storing stats for CPID: {0}", xmlCpid);
+
+                                    // if there is already a stat logged for this researcher on this project remove it
+                                    var existingProjectResearcher = await _db.ProjectResearcher
+                                                                             .Include(x => x.Researcher)
+                                                                             .SingleOrDefaultAsync(x => x.ProjectId == project.Id && x.ResearcherId == researcher.Id);
+                                    if (existingProjectResearcher != null)
+                                    {
+                                        _db.ProjectResearcher.Remove(existingProjectResearcher);
+                                        _logger.Debug("Removed existing stats for researcher with CPID: {0} on the project: {1}", existingProjectResearcher.Researcher.CPID, project.Name);
+                                    }
+
                                     continue;
                                 }
                             }
