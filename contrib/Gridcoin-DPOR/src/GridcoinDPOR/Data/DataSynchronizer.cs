@@ -31,6 +31,7 @@ namespace GridcoinDPOR.Data
 
         private string _syncDataXml;
         private bool _beaconDataChanged;
+        private bool _statsDataChanged;
 
         private readonly GridcoinContext _db;
         private readonly FileDownloader _fileDownloader;
@@ -404,6 +405,11 @@ namespace GridcoinDPOR.Data
 
                     _logger.Debug("Skipped storing stats of {0} CPIDS for project: {1} because of expavg_time > 32 days from Last-Modified time", skipped, project.Name);
                     int changes = await _db.SaveChangesAsync();
+                    if (changes > 0)
+                    {
+                        _statsDataChanged = true;
+                    }
+
                     _logger.Debug("Made {0} changes to the ProjectResearchers table", changes);
                 }
             }
@@ -412,9 +418,9 @@ namespace GridcoinDPOR.Data
         private async Task CalculateMagnitudes()
         {
             _logger.Information("Calculating Project Averages");
-            if (_beaconDataChanged == false)
+            if (_beaconDataChanged == false && _statsDataChanged == false)
             {
-                _logger.Information("Skipping calculation of averages and magnitudes because beacon data has not changed");
+                _logger.Information("Skipping calculation magnitudes because no local data has changed");
             }
 
             var projects = await _db.Projects.ToListAsync();
@@ -497,7 +503,7 @@ namespace GridcoinDPOR.Data
         private async Task GenerateContract()
         {
             string contractPath = Path.Combine(Path.Combine(_paths.RootFolder, "contract.dat"));
-            if (File.Exists(contractPath) && _beaconDataChanged == false)
+            if (_beaconDataChanged == false && _statsDataChanged == false)
             {
                 _logger.Information("Skipping generation of the contract.dat file because it already exists and the beacon data has not changed");
                 return;
@@ -548,7 +554,7 @@ namespace GridcoinDPOR.Data
         private async Task GenerateContractNoTeam()
         {
             string contractPath = Path.Combine(Path.Combine(_paths.RootFolder, "contract-noteam.dat"));
-            if (File.Exists(contractPath) && _beaconDataChanged == false)
+            if (_beaconDataChanged == false && _statsDataChanged == false)
             {
                 _logger.Information("Skipping generation of the contract-noteam.dat file because it already exists and the beacon data has not changed");
                 return;
