@@ -138,6 +138,7 @@ namespace GridcoinDPOR
                         case "neuralhash":
                             logger.Information("Getting neural hash");
                             string hash = await contract.GetNeuralHash(noTeam);
+                            logger.Information("Found Neural Hash: {0}", hash);
                             Console.WriteLine(hash);
                             break;
 
