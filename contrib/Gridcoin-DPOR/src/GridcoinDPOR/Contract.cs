@@ -26,7 +26,6 @@ namespace GridcoinDPOR
         }
 
         private readonly Paths _paths;
-        private readonly QuorumHashingAlgorithm _quorumHashingAlg;
 
         public Contract(
             ILogger logger,
@@ -34,7 +33,6 @@ namespace GridcoinDPOR
         {
             _logger = logger;
             _paths = paths;
-            _quorumHashingAlg = new QuorumHashingAlgorithm();
         }
 
         public async Task<string> GetContract(bool noTeam)
@@ -70,7 +68,7 @@ namespace GridcoinDPOR
                 return "d41d8cd98f00b204e9800998ecf8427e";
             }
 
-            var hash = _quorumHashingAlg.GetNeuralHash(contract);
+            var hash = HashUtil.NeuralHash(contract);
             return hash;
         }
     }

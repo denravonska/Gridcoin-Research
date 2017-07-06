@@ -35,7 +35,6 @@ namespace GridcoinDPOR.Data
 
         private readonly GridcoinContext _db;
         private readonly FileDownloader _fileDownloader;
-        private readonly QuorumHashingAlgorithm _hashAlgo;
         private readonly Paths _paths;
 
          public DataSynchronizer(
@@ -48,7 +47,6 @@ namespace GridcoinDPOR.Data
             _paths = paths;
             _db = dbContext;
             _fileDownloader = fileDownloader;
-            _hashAlgo = new QuorumHashingAlgorithm();
         }
 
         public async Task SyncAsync(string dataDirectory)
@@ -71,7 +69,6 @@ namespace GridcoinDPOR.Data
                 await SyncUserStatsAsync();
                 await CalculateMagnitudes();
                 await GenerateContract();
-                await GenerateContractNoTeam();
             }
             catch (Exception ex)
             {
@@ -444,8 +441,8 @@ namespace GridcoinDPOR.Data
 
             foreach (var project in projects)
             {
-                int projectResearchersCount = await _db.ProjectResearcher.CountAsync(x => x.ProjectId == project.Id);
-                int projectResearchersInTeamCount = await _db.ProjectResearcher.CountAsync(x => x.ProjectId == project.Id && x.InTeam == true);
+                // calculate averages with team requirement
+                int projectResearchersInTeamCount = await _db.ProjectResearcher.CountAsync(x => x.ProjectId == project.Id && x.InTeam == true && x.RAC > 10);
                 if (projectResearchersInTeamCount > 0)
                 {
                     // TODO: Remove this to fix issue with too much mag being awarded to projects when a project is missing. 
@@ -453,16 +450,16 @@ namespace GridcoinDPOR.Data
                     projectsCount++;
                 }
 
-                double noTeamTotalRAC = await _db.ProjectResearcher.Where(x => x.ProjectId == project.Id).SumAsync(x => x.RAC);
-                double noTeamAvgRAC = (noTeamTotalRAC / (projectResearchersInTeamCount + 0.01));
-
-                double teamTotalRAC = await _db.ProjectResearcher.Where(x => x.ProjectId == project.Id && x.InTeam == true).SumAsync(x => x.RAC);
-                double teamAvgRAC = (teamTotalRAC / (projectResearchersCount + 0.01));
-
-                project.NoTeamTotalRAC = noTeamTotalRAC;
-                project.NoTeamAvgRAC = noTeamAvgRAC;
-                project.TeamTotalRAC = teamTotalRAC;
-                project.TeamAvgRAC = teamAvgRAC;
+                double teamTotalRAC = 0;
+                var researchersOnProject = await _db.ProjectResearcher.Where(x => x.ProjectId == project.Id && x.InTeam == true && x.RAC > 10).ToListAsync();
+                foreach(var researcherOnProj in researchersOnProject)
+                {
+                    teamTotalRAC += RoundingUtil.RoundSnap(researcherOnProj.RAC);
+                }
+              
+                double teamAvgRAC = (teamTotalRAC / (projectResearchersInTeamCount + 0.01));
+                project.TeamTotalRAC = RoundingUtil.RoundSnap(teamTotalRAC);
+                project.TeamAvgRAC = RoundingUtil.RoundSnap(teamAvgRAC);
             }
 
             await _db.SaveChangesAsync();
@@ -534,7 +531,7 @@ namespace GridcoinDPOR.Data
                 researcher.IsValid = true;
                 if (researcher.IsValid)
                 {
-                    string cpid = researcher.CPID + "," + Num(researcher.TotalMag) + ";";
+                    string cpid = researcher.CPID + "," + RoundingUtil.RoundSnap(researcher.TotalMag).ToString() + ";";
                     if (researcher.TotalMag == 0)
                     {
                         cpid = "0,15;";
@@ -549,13 +546,13 @@ namespace GridcoinDPOR.Data
 
             stringBuilder.Append("</MAGNITUDES><QUOTES>btc,0;grc,0;</QUOTES><AVERAGES>");
 
-            var projects = await _db.Projects.OrderBy(x => x.Name).AsNoTracking().ToListAsync();
+            var projects = await _db.Projects.OrderBy(x => x.GetNameForContract()).AsNoTracking().ToListAsync();
 
             foreach(var project in projects)
             {
                 if (project.TeamAvgRAC > 0)
                 {
-                    stringBuilder.Append(project.GetNameForContract() + "," + Num(project.TeamAvgRAC) + "," + Num(project.TeamTotalRAC) + ";");
+                    stringBuilder.Append(project.GetNameForContract() + "," + project.TeamAvgRAC.ToString() + "," + project.TeamTotalRAC.ToString() + ";");
                 }
             }
 
@@ -565,62 +562,62 @@ namespace GridcoinDPOR.Data
             File.WriteAllText(contractPath, contract);
         }
 
-        private async Task GenerateContractNoTeam()
-        {
-            string contractPath = Path.Combine(Path.Combine(_paths.RootFolder, "contract-noteam.dat"));
-            if (_beaconDataChanged == false && _statsDataChanged == false)
-            {
-                _logger.Information("Skipping generation of the contract-noteam.dat file because it already exists and the beacon data has not changed");
-                return;
-            }
+        //private async Task GenerateContractNoTeam()
+        //{
+        //    string contractPath = Path.Combine(Path.Combine(_paths.RootFolder, "contract-noteam.dat"));
+        //    if (_beaconDataChanged == false && _statsDataChanged == false)
+        //    {
+        //        _logger.Information("Skipping generation of the contract-noteam.dat file because it already exists and the beacon data has not changed");
+        //        return;
+        //    }
 
-            var researchers = await _db.Researchers.AsNoTracking().ToListAsync();
-            _logger.Information("Generating contract-noteam.dat for {0} researchers", researchers.Count);
+        //    var researchers = await _db.Researchers.AsNoTracking().ToListAsync();
+        //    _logger.Information("Generating contract-noteam.dat for {0} researchers", researchers.Count);
 
-            var stringBuilder = new StringBuilder();
-            stringBuilder.Append("<MAGNITUDES>");
+        //    var stringBuilder = new StringBuilder();
+        //    stringBuilder.Append("<MAGNITUDES>");
 
-            foreach(var researcher in researchers)
-            {
-                researcher.IsValid = true;
-                if (researcher.IsValid)
-                {
-                    string cpid = researcher.CPID + "," + Num(researcher.TotalMagNTR) + ";";
-                    if (researcher.TotalMagNTR == 0)
-                    {
-                        cpid = "0,15;";
-                    }
-                    stringBuilder.Append(cpid);
-                }
-                else
-                {
-                    stringBuilder.Append(researcher.CPID + ",00;");
-                }
-            }
+        //    foreach(var researcher in researchers)
+        //    {
+        //        researcher.IsValid = true;
+        //        if (researcher.IsValid)
+        //        {
+        //            string cpid = researcher.CPID + "," + Num(researcher.TotalMagNTR) + ";";
+        //            if (researcher.TotalMagNTR == 0)
+        //            {
+        //                cpid = "0,15;";
+        //            }
+        //            stringBuilder.Append(cpid);
+        //        }
+        //        else
+        //        {
+        //            stringBuilder.Append(researcher.CPID + ",00;");
+        //        }
+        //    }
 
-            stringBuilder.Append("</MAGNITUDES><AVERAGES>");
+        //    stringBuilder.Append("</MAGNITUDES><AVERAGES>");
 
-            var projects = await _db.Projects.OrderBy(x => x.Name).AsNoTracking().ToListAsync();
+        //    var projects = await _db.Projects.OrderBy(x => x.Name).AsNoTracking().ToListAsync();
 
-            foreach(var project in projects)
-            {
-                if (project.TeamAvgRAC > 0)
-                {
-                    stringBuilder.Append(project.GetNameForContract() + "," + Num(project.NoTeamAvgRAC) + "," + Num(project.NoTeamTotalRAC) + ";");
-                }
-            }
+        //    foreach(var project in projects)
+        //    {
+        //        if (project.TeamAvgRAC > 0)
+        //        {
+        //            stringBuilder.Append(project.GetNameForContract() + "," + Num(project.NoTeamAvgRAC) + "," + Num(project.NoTeamTotalRAC) + ";");
+        //        }
+        //    }
 
-            stringBuilder.Append("NeuralNetwork,2000000,20000000;</AVERAGES>");
+        //    stringBuilder.Append("NeuralNetwork,2000000,20000000;</AVERAGES>");
 
-            string contract = stringBuilder.ToString();
-            File.WriteAllText(contractPath, contract);
-        }
+        //    string contract = stringBuilder.ToString();
+        //    File.WriteAllText(contractPath, contract);
+        //}
 
-        private string Num(double magnitude)
-        {
-            double dither = _hashAlgo.RoundWithDither(magnitude);
-            string noSep = dither.ToString().Replace(",", ".");
-            return noSep;
-        }
+        //private string Num(double magnitude)
+        //{
+        //    double dither = RoundingUtil.RoundMag(magnitude);
+        //    string noSep = dither.ToString().Replace(",", ".");
+        //    return noSep;
+        //}
     }
 }
