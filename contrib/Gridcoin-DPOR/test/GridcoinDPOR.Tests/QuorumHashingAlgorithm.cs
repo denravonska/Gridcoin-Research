@@ -28,7 +28,7 @@ namespace GridcoinDPOR.Tests
             var hash = quorumHashingAlgo.GetNeuralHash(contactData);
 
             // ASSERT
-            Assert.Equal(expected: "81211a4d534a68d715fcafe9e628c2d3", actual: hash);
+            Assert.Equal(expected: "41f0d5f2b7f38cff345c876a370b57f1", actual: hash);
         }
     }
 }

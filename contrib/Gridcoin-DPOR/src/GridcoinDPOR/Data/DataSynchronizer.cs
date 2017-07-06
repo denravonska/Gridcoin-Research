@@ -333,6 +333,7 @@ namespace GridcoinDPOR.Data
                         {
                             string xml = await reader.ReadInnerXmlAsync();
                             string xmlCpid = XmlUtil.ExtractXml(xml, "cpid");
+                            double xmlRAC = Convert.ToDouble(XmlUtil.ExtractXml(xml, "expavg_credit"));
 
                             var researcher = researchers.SingleOrDefault(x => x.CPID == xmlCpid);
                             if (researcher == null)
@@ -361,11 +362,26 @@ namespace GridcoinDPOR.Data
 
                                     continue;
                                 }
+
+                                //if (xmlRAC < 1)
+                                //{
+                                //    skipped++;
+                                //     if there is already a stat logged for this researcher on this project remove it
+                                //    var existingProjectResearcher = await _db.ProjectResearcher
+                                //                                             .Include(x => x.Researcher)
+                                //                                             .SingleOrDefaultAsync(x => x.ProjectId == project.Id && x.ResearcherId == researcher.Id);
+                                //    if (existingProjectResearcher != null)
+                                //    {
+                                //        _db.ProjectResearcher.Remove(existingProjectResearcher);
+                                //        _logger.Debug("Removed existing stats for researcher with CPID: {0} on the project: {1}", existingProjectResearcher.Researcher.CPID, project.Name);
+                                //    }
+
+                                //    continue;
+                                //}
                             }
 
                             // parse fields and store record
                             double xmlTotalCredit = Convert.ToDouble(XmlUtil.ExtractXml(xml, "total_credit"));
-                            double xmlRAC = Convert.ToDouble(XmlUtil.ExtractXml(xml, "expavg_credit"));
                             int xmlProjectUserId = Convert.ToInt32(XmlUtil.ExtractXml(xml, "id"));
 
                             bool inTeam = false;
@@ -424,12 +440,21 @@ namespace GridcoinDPOR.Data
             }
 
             var projects = await _db.Projects.ToListAsync();
+            int projectsCount = 0;
+
             foreach (var project in projects)
             {
                 int projectResearchersCount = await _db.ProjectResearcher.CountAsync(x => x.ProjectId == project.Id);
+                int projectResearchersInTeamCount = await _db.ProjectResearcher.CountAsync(x => x.ProjectId == project.Id && x.InTeam == true);
+                if (projectResearchersInTeamCount > 0)
+                {
+                    // TODO: Remove this to fix issue with too much mag being awarded to projects when a project is missing. 
+                    //       We should be using the total count of white-listed  projects instead projects.Count
+                    projectsCount++;
+                }
 
                 double noTeamTotalRAC = await _db.ProjectResearcher.Where(x => x.ProjectId == project.Id).SumAsync(x => x.RAC);
-                double noTeamAvgRAC = (noTeamTotalRAC / (projectResearchersCount + 0.01));
+                double noTeamAvgRAC = (noTeamTotalRAC / (projectResearchersInTeamCount + 0.01));
 
                 double teamTotalRAC = await _db.ProjectResearcher.Where(x => x.ProjectId == project.Id && x.InTeam == true).SumAsync(x => x.RAC);
                 double teamAvgRAC = (teamTotalRAC / (projectResearchersCount + 0.01));
@@ -447,53 +472,42 @@ namespace GridcoinDPOR.Data
                                        .Include(x => x.ProjectResearchers)
                                        .ToListAsync();
 
+
+            
+            _logger.Information("Calculating Magnitudes");
+
             foreach(var researcher in researchers)
             {
                 researcher.TotalMag = 0;
                 researcher.TotalMagNTR = 0;
-            }
 
-            _logger.Information("Calculating Magnitudes");
-            int projectsCount = projects.Count();
-
-            foreach(var p in projects)
-            {
-                _logger.Debug("Calculating individual magnitudes for researchers on project: {0}", p.Name);
-                foreach(var r in researchers)
+                foreach(var project in projects)
                 {
-                    var projectResearcher = r.ProjectResearchers.SingleOrDefault(x => x.ProjectId == p.Id && x.ResearcherId == r.Id && x.RAC > 0);
+                    var projectResearcher = researcher.ProjectResearchers.SingleOrDefault(x => x.ProjectId == project.Id && x.ResearcherId == researcher.Id && x.RAC > 10);
                     if (projectResearcher != null)
                     {
-                        if (projectResearcher.RAC > 0)
-                        {
-                            double mag = Math.Round(((projectResearcher.RAC / (p.TeamTotalRAC + 0.01)) / (projectsCount + 0.01)) *  NEURAL_NETWORK_MULTIPLIER, 2);
-                            double magNTR = Math.Round(((projectResearcher.RAC / (p.NoTeamTotalRAC + 0.01)) / (projectsCount + 0.01)) *  NEURAL_NETWORK_MULTIPLIER, 2);
-                            projectResearcher.ProjectMag = mag;
-                            projectResearcher.ProjectMagNTR = magNTR;
+                        double mag = Math.Round(((projectResearcher.RAC / (project.TeamTotalRAC + 0.01)) / (projectsCount + 0.01)) *  NEURAL_NETWORK_MULTIPLIER, 2);
+                        double magNTR = Math.Round(((projectResearcher.RAC / (project.NoTeamTotalRAC + 0.01)) / (projectsCount + 0.01)) *  NEURAL_NETWORK_MULTIPLIER, 2);
+                        projectResearcher.ProjectMag = mag;
+                        projectResearcher.ProjectMagNTR = magNTR;
 
-                            r.TotalMag += mag;
-                            r.TotalMagNTR += magNTR;
-                        }
-                    }
-
-                    if (r.TotalMag < 1 && r.TotalMag > 0.25)
-                    {
-                        r.TotalMag = 1;
-                    }
-                    else
-                    {
-                        r.TotalMag = Math.Round(r.TotalMag, 2);
-                    }
-
-                    if (r.TotalMagNTR < 1 && r.TotalMagNTR > 0.25)
-                    {
-                        r.TotalMagNTR = 1;
-                    }
-                    else
-                    {
-                        r.TotalMagNTR = Math.Round(r.TotalMagNTR, 2);
+                        researcher.TotalMag += mag;
+                        researcher.TotalMagNTR += magNTR;
                     }
                 }
+
+                if (researcher.TotalMag < 1 && researcher.TotalMag > 0.25)
+                {
+                    researcher.TotalMag = 1;
+                }
+                researcher.TotalMag = Math.Round(researcher.TotalMag, 2);
+                    
+
+                if (researcher.TotalMagNTR < 1 && researcher.TotalMagNTR > 0.25)
+                {
+                    researcher.TotalMagNTR = 1;
+                }
+                researcher.TotalMagNTR = Math.Round(researcher.TotalMagNTR, 2);
             }
             
             await _db.SaveChangesAsync();
@@ -509,7 +523,7 @@ namespace GridcoinDPOR.Data
                 return;
             }
 
-            var researchers = await _db.Researchers.AsNoTracking().ToListAsync();
+            var researchers = await _db.Researchers.AsNoTracking().OrderBy(x => x.CPID).ToListAsync();
             _logger.Information("Generating contract.dat for {0} researchers", researchers.Count);
 
             var stringBuilder = new StringBuilder();
