@@ -470,23 +470,15 @@ void GetGlobalStatus()
         uint64_t nWeight = 0;
         pwalletMain->GetStakeWeight(nWeight);
         nBoincUtilization = boincmagnitude; //Legacy Support for the about screen
-        double weight = nWeight/COIN;
         double PORDiff = GetDifficulty(GetLastBlockIndex(pindexBest, true));
-        std::string sWeight = RoundToString((double)weight,0);
-
-        //9-6-2015 Add RSA fields to overview
-        if ((double)weight > 100000000000000)
-        {
-            sWeight = sWeight.substr(0,13) + "E" + RoundToString((double)sWeight.length()-13,0);
-        }
 
         LOCK(GlobalStatusStruct.lock);
         { LOCK(MinerStatus.lock);
         GlobalStatusStruct.blocks = ToString(nBestHeight);
         GlobalStatusStruct.difficulty = RoundToString(PORDiff,3);
-        GlobalStatusStruct.netWeight = RoundToString(GetPoSKernelPS(),2);
+        GlobalStatusStruct.netWeight = GetPoSKernelPS();
         //todo: use the real weight from miner status (requires scaling)
-        GlobalStatusStruct.coinWeight = sWeight;
+        GlobalStatusStruct.coinWeight = nWeight / (double) COIN;
         GlobalStatusStruct.magnitude = RoundToString(boincmagnitude,2);
         GlobalStatusStruct.project = msMiningProject;
         GlobalStatusStruct.cpid = GlobalCPUMiningCPID.cpid;
@@ -495,7 +487,7 @@ void GetGlobalStatus()
         GlobalStatusStruct.status.clear();
 
         if(MinerStatus.WeightSum)
-            GlobalStatusStruct.coinWeight = RoundToString(MinerStatus.WeightSum / 80.0,2);
+            GlobalStatusStruct.coinWeight = MinerStatus.WeightSum / 80.0;
 
         GlobalStatusStruct.errors.clear();
         std::string Alerts = GetWarnings("statusbar");

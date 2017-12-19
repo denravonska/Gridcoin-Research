@@ -2,6 +2,7 @@
 
 #include <QWidget>
 #include <QListView>
+#include <QLocale>
 
 #include "overviewpage.h"
 #include "ui_overviewpage.h"
@@ -206,11 +207,13 @@ void OverviewPage::setBalance(qint64 balance, qint64 stake, qint64 unconfirmedBa
 
 void OverviewPage::UpdateBoincUtilization()
 {
+    QLocale locale = QLocale::system();
+
     LOCK(GlobalStatusStruct.lock);
     ui->labelBlocks->setText(QString::fromUtf8(GlobalStatusStruct.blocks.c_str()));
     ui->labelDifficulty->setText(QString::fromUtf8(GlobalStatusStruct.difficulty.c_str()));
-    ui->labelNetWeight->setText(QString::fromUtf8(GlobalStatusStruct.netWeight.c_str()));
-    ui->labelCoinWeight->setText(QString::fromUtf8(GlobalStatusStruct.coinWeight.c_str()));
+    ui->labelNetWeight->setText(locale.toString(GlobalStatusStruct.netWeight, 'f', 2));
+    ui->labelCoinWeight->setText(locale.toString(GlobalStatusStruct.coinWeight, 'f', 2));
     ui->labelMagnitude->setText(QString::fromUtf8(GlobalStatusStruct.magnitude.c_str()));
     ui->labelProject->setText(QString::fromUtf8(GlobalStatusStruct.project.c_str()));
     ui->labelCpid->setText(QString::fromUtf8(GlobalStatusStruct.cpid.c_str()));

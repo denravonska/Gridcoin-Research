@@ -225,8 +225,8 @@ struct globalStatusType
     CCriticalSection lock;
     std::string blocks;
     std::string difficulty;
-    std::string netWeight;
-    std::string coinWeight;
+    double netWeight;
+    double coinWeight;
     std::string magnitude;
     std::string project;
     std::string cpid;
