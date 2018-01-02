@@ -19,13 +19,9 @@
 #include <QFuture>
 
 #include <QtGlobal>
-#if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
-#  include <QtWidgets>
-#else
-#  include <QtGui>
-#endif
+#include <QtWidgets>
 
-#if QT_VERSION >= QT_VERSION_CHECK(5, 8, 0)
+#ifdef QT_CHARTS_LIB
 #include <QtCharts/QChartGlobal>
 #endif
 
@@ -33,13 +29,10 @@ QT_BEGIN_NAMESPACE
 class QEvent;
 class QObject;
 class QResizeEvent;
-QT_END_NAMESPACE
-
-#if QT_VERSION >= QT_VERSION_CHECK(5, 8, 0)
-QT_CHARTS_BEGIN_NAMESPACE
+#ifdef QT_CHARTS_LIB
 class QChart;
-QT_CHARTS_END_NAMESPACE
 #endif
+QT_END_NAMESPACE
 
 #define VOTINGDIALOG_WIDTH_RowNumber          40
 #define VOTINGDIALOG_WIDTH_Title              225
@@ -192,7 +185,7 @@ public:
 private:
     QLabel *question_;
     QLabel *url_;
-#if QT_VERSION >= QT_VERSION_CHECK(5, 8, 0)
+#ifdef QT_CHARTS_LIB
     QtCharts::QChart *chart_;
 #endif
     QTableWidget *answerTable_;

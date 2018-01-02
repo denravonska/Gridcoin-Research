@@ -7,7 +7,7 @@
 #include <QAction>
 #include <QApplication>
 
-#if QT_VERSION >= QT_VERSION_CHECK(5, 8, 0)
+#ifdef QT_CHARTS_LIB
 	#include <QtCharts/QChartView>
 	#include <QtCharts/QPieSeries>
 #endif
@@ -405,14 +405,8 @@ VotingDialog::VotingDialog(QWidget *parent)
     tableView_->setSortingEnabled(true);
     tableView_->sortByColumn(VotingTableModel::RowNumber, Qt::DescendingOrder);
     tableView_->verticalHeader()->hide();
-
     tableView_->setModel(proxyModel_);
-
-#if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
     tableView_->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
-#else
-    tableView_->horizontalHeader()->setResizeMode(QHeaderView::Interactive);
-#endif
     tableView_->horizontalHeader()->setMinimumWidth(VOTINGDIALOG_WIDTH_RowNumber + VOTINGDIALOG_WIDTH_Title + VOTINGDIALOG_WIDTH_Expiration + VOTINGDIALOG_WIDTH_ShareType + VOTINGDIALOG_WIDTH_TotalParticipants + VOTINGDIALOG_WIDTH_TotalShares + VOTINGDIALOG_WIDTH_BestAnswer);
 
     groupboxvlayout->addWidget(tableView_);
@@ -623,7 +617,7 @@ void VotingDialog::showNewPollDialog(void)
 //
 VotingChartDialog::VotingChartDialog(QWidget *parent)
     : QDialog(parent)
-#if QT_VERSION >= QT_VERSION_CHECK(5, 8, 0)
+#ifdef QT_CHARTS_LIB
     ,chart_(0)
 #endif
     ,answerTable_(NULL)
@@ -676,7 +670,7 @@ VotingChartDialog::VotingChartDialog(QWidget *parent)
 
     QTabWidget *resTabWidget = new QTabWidget;
 
-#if QT_VERSION >= QT_VERSION_CHECK(5, 8, 0)
+#ifdef QT_CHARTS_LIB
     chart_ = new QtCharts::QChart;
     chart_->legend()->setVisible(true);
     chart_->legend()->setAlignment(Qt::AlignRight);
@@ -690,11 +684,7 @@ VotingChartDialog::VotingChartDialog(QWidget *parent)
     answerTable_->setRowCount(0);
     answerTableHeader<<"Answer"<<"Shares"<<"Percentage";
     answerTable_->setHorizontalHeaderLabels(answerTableHeader);
-#if QT_VERSION < 0x050000
-    answerTable_->horizontalHeader()->setResizeMode(QHeaderView::Stretch);
-#else
     answerTable_->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-#endif
     answerTable_->setEditTriggers( QAbstractItemView::NoEditTriggers );
     resTabWidget->addTab(answerTable_, tr("List"));
     vlayout->addWidget(resTabWidget);
@@ -708,11 +698,11 @@ void VotingChartDialog::resetData(const VotingItem *item)
     answerTable_->setRowCount(0);
     answerTable_->setSortingEnabled(false);
 
-#if QT_VERSION >= QT_VERSION_CHECK(5, 8, 0)
-    //chart_->removeAllSeries();
+#ifdef QT_CHARTS_LIB
     QList<QtCharts::QAbstractSeries *> oldSeriesList = chart_->series();
-    foreach (QtCharts::QAbstractSeries *oldSeries, oldSeriesList) {
-        chart_->removeSeries(oldSeries);
+    foreach (QtCharts::QAbstractSeries *oldSeries, oldSeriesList)
+    {
+       chart_->removeSeries(oldSeries);
     }
 
     QtCharts::QPieSeries *series = new QtCharts::QPieSeries();
@@ -734,7 +724,9 @@ void VotingChartDialog::resetData(const VotingItem *item)
         iShares.push_back(iShare);
         sharesSum += iShare;
     }
-    for(size_t y=0; y < sAnswerNames.size(); y++) {
+
+    for(size_t y=0; y < sAnswerNames.size(); y++)
+    {
         answerTable_->setItem(y, 0, new QTableWidgetItem(sAnswerNames[y]));
         QTableWidgetItem *iSharesItem = new QTableWidgetItem();
         iSharesItem->setData(Qt::DisplayRole,iShares[y]);
@@ -743,7 +735,7 @@ void VotingChartDialog::resetData(const VotingItem *item)
         percentItem->setData(Qt::DisplayRole,(float)iShares[y]/(float)sharesSum*100);
         answerTable_->setItem(y, 2, percentItem);
 
-#if QT_VERSION >= QT_VERSION_CHECK(5, 8, 0)
+#ifdef QT_CHARTS_LIB
         QtCharts::QPieSlice *slice = new QtCharts::QPieSlice(sAnswerNames[y], iShares[y]);
         unsigned int num = rand();
         int r = (num >>  0) % 0xFF;
@@ -751,12 +743,11 @@ void VotingChartDialog::resetData(const VotingItem *item)
         int b = (num >> 16) % 0xFF;
         slice->setColor(QColor(r, g, b));
         series->append(slice);
+        chart_->addSeries(series);
 #endif
     }
+
     answerTable_->setSortingEnabled(true);
-#if QT_VERSION >= QT_VERSION_CHECK(5, 8, 0)
-    chart_->addSeries(series);
-#endif
 }
 
 // VotingVoteDialog
