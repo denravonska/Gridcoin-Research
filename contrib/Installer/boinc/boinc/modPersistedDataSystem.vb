@@ -890,14 +890,19 @@ Module modPersistedDataSystem
 
             'Thread.Join
             For x As Integer = 1 To 120
-                If mlQueue = 0 Then Exit For
+                'Log if the queue is a negative number
+                If mlQueue < 0 Then
+                    Log("Warning: mlQueue has a negative number of " + mlQueue.ToString)
+                End If
+                'If queue is zero or less then zero we will exit here. The bug behind this should be solved in future
+                If mlQueue <= 0 Then Exit For
                 GuiDoEvents()
                 Threading.Thread.Sleep(200)
                 mlPercentComplete -= 1
                 If mlPercentComplete < 10 Then mlPercentComplete = 10
             Next
             Dim lNoWitnesses As Long = CPIDCountWithNoWitnesses()
-            If mlQueue = 0 And lNoWitnesses = 0 Then Exit For Else Log(Trim(lNoWitnesses) + " CPIDs remaining with no witnesses.  Cleaning up problem.")
+            If lNoWitnesses = 0 Then Exit For Else Log(Trim(lNoWitnesses) + " CPIDs remaining with no witnesses.  Cleaning up problem.")
         Next z
 
         Try
