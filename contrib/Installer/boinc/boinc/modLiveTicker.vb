@@ -53,7 +53,6 @@
         'Remove " and :
         sOut = Replace(sOut, Chr(34), "")
         sOut = Replace(sOut, Chr(58), "")
-        Log("Debug EV: sOut " + sOut + " iPos1 " + iPos1.ToString + " iPos2 " + iPos2.ToString)
         Return sOut
     End Function
     Public Sub MegaQuote()
