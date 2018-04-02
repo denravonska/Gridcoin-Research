@@ -230,12 +230,11 @@ Module modPersistedDataSystem
 
             surrogateRow.Database = "Prices"
             surrogateRow.Table = "Quotes"
-            lstCPIDs = GetList(surrogateRow, "*")
+            Dim lstQUOTEs As List(Of Row) = GetList(surrogateRow, "*")
 
-            For Each cpid As Row In lstCPIDs
-                Dim dNeuralMagnitude As Double = 0
-                Dim sRow As String = cpid.PrimaryKey + "," + Num(cpid.Magnitude) + ";"
-                lTotal = lTotal + Val("0" + Trim(cpid.Magnitude))
+            For Each quote As Row In lstQUOTEs
+                Dim sRow As String = quote.PrimaryKey + "," + Num(quote.Magnitude) + ";"
+                lTotal = lTotal + Val("0" + Trim(quote.Magnitude))
                 lRows = lRows + 1
                 sOut += sRow
             Next
@@ -291,7 +290,7 @@ Module modPersistedDataSystem
             Return sOut
 
         Catch ex As Exception
-            Log("GetMagnitudeContract" + ex.Message)
+            Log("GetMagnitudeContract " + ex.Message)
             Return ""
         End Try
 
@@ -919,8 +918,8 @@ Module modPersistedDataSystem
         lstCPIDs.Sort(Function(x, y) x.PrimaryKey.CompareTo(y.PrimaryKey))
         Dim sMemoryName = IIf(mbTestNet, "magnitudes_testnet", "magnitudes")
         'Get CryptoCurrency Quotes:
-        Dim dBTC As Double = GetCryptoPrice("BTC").Price * 100
-        Dim dGRC As Double = GetCryptoPrice("GRC").Price * 10000000000
+        Dim dBTC As Double = GetCryptoPrice("BTC").Price
+        Dim dGRC As Double = GetCryptoPrice("GRC").Price * 100000000
         '8-16-2015
         Dim q As New Row
         q.Database = "Prices"
@@ -930,7 +929,7 @@ Module modPersistedDataSystem
         q.Synced = q.Expiration
 
         q.Magnitude = Trim(Math.Round(dBTC, 2))
-        Log("Storing Bitcoin price quote")
+        Log("Storing Bitcoin Price Quote")
         Store(q)
         q = New Row
         q.Database = "Prices"
@@ -1767,9 +1766,7 @@ Retry:
             Catch ex As Exception
 
             End Try
-            Dim sLast As String = ExtractValue(sJSON, "lastprice", "updated")
-            sLast = Replace(sLast, ",", ".")
-
+            Dim sLast As String = ExtractValue(sJSON, "lastprice")
             Dim dprice As Double
             dprice = CDbl(sLast)
             Dim qBitcoin As Quote
