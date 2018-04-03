@@ -230,7 +230,7 @@ Module modPersistedDataSystem
 
             'If total nework magnitude is greater then 1% tolerance of 115000 then don't form
             'a contract with out of bounds magnitudes.
-            If lTotal >= (115000 * 0.01) Then
+            If lTotal >= (115000 + (115000 * 0.01)) Then
                 Log("Total Network Magnitude exceeds limits in contract: " + lTotal.ToString)
                 Return "<ERROR>Superblock Total Network Magnitude " + Trim(lTotal) + " out of bounds</ERROR>"
             End If
