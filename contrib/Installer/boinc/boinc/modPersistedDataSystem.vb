@@ -228,14 +228,19 @@ Module modPersistedDataSystem
             '            sOut += "00000000000000000000000000000001,32767;"
             sOut += "</MAGNITUDES><QUOTES>"
 
+            'If total nework magnitude is greater then 1% tolerance of 115000 then don't form
+            'a contract with out of bounds magnitudes.
+            If lTotal >= (115000 * 0.01) Then
+                Log("Total Network Magnitude exceeds limits in contract: " + lTotal.ToString)
+                Return "<ERROR>Superblock Total Network Magnitude " + Trim(lTotal) + " out of bounds</ERROR>"
+            End If
+
             surrogateRow.Database = "Prices"
             surrogateRow.Table = "Quotes"
             Dim lstQUOTEs As List(Of Row) = GetList(surrogateRow, "*")
 
             For Each quote As Row In lstQUOTEs
                 Dim sRow As String = quote.PrimaryKey + "," + Num(quote.Magnitude) + ";"
-                lTotal = lTotal + Val("0" + Trim(quote.Magnitude))
-                lRows = lRows + 1
                 sOut += sRow
             Next
 
