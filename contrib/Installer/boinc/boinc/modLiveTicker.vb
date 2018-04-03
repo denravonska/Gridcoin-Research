@@ -38,16 +38,21 @@
         End If
         Return q
     End Function
-    Public Function ExtractValue(sData As String, sStartKey As String, sEndKey As String)
-        Dim iPos1 As Integer = InStr(1, sData, sStartKey)
-        iPos1 = iPos1 + Len(sStartKey)
-        Dim iPos2 As Integer = InStr(iPos1, sData, sEndKey)
-        iPos2 = iPos2
+    Public Function ExtractValue(sData As String, sKey As String)
+        Dim iPos1 As Integer = InStr(1, sData, sKey)
+        iPos1 = iPos1 + Len(sKey)
+        Dim iPos2 As Integer = InStr(iPos1, sData, ",")
+        'If the key is located at end with no further delimiter of , then check for } to confirm this and use as position
+        'Incase the field for what we request ends up at the end. This broke due to the fact field locations changed
+        If iPos2 = 0 Then
+            iPos2 = InStr(iPos1, sData, "}")
+        End If
+        'If still zero then return empty
         If iPos2 = 0 Then Return ""
         Dim sOut As String = Mid(sData, iPos1, iPos2 - iPos1)
+        'Remove " and :
         sOut = Replace(sOut, Chr(34), "")
-        sOut = Replace(sOut, ":", "")
-        sOut = Replace(sOut, ",", "")
+        sOut = Replace(sOut, Chr(58), "")
         Return sOut
     End Function
     Public Sub MegaQuote()
