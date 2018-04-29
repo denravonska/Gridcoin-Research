@@ -53,6 +53,8 @@ namespace NN
     //!
     std::string GetNeuralContract();
 
+    void SetNeuralContract(const std::string& contract, const std::string &hash);
+
     //!
     //! \brief Enable/disable testnet in neural net.
     //! \param onTestnet New testnet flag.

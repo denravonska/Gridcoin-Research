@@ -703,8 +703,11 @@ int AddNeuralContractOrVote(const CBlock &blocknew, MiningCPID &bb)
     int pending_height = RoundFromString(ReadCache("neuralsecurity","pending").value, 0);
 
     /* Add our Neural Vote */
-    bb.NeuralHash = sb_hash;
-    LogPrintf("AddNeuralContractOrVote: Added our Neural Vote %s\n",sb_hash);
+    if(NN::IsNeuralNet() && NN::IsEnabled())
+    {
+        bb.NeuralHash = sb_hash;
+        LogPrintf("AddNeuralContractOrVote: Added our Neural Vote %s\n",sb_hash);
+    }
 
     if (pending_height>=(pindexBest->nHeight-200))
         return LogPrintf("AddNeuralContractOrVote: already Pending\n");

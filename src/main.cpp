@@ -366,21 +366,29 @@ bool PushGridcoinDiagnostics()
 
 bool FullSyncWithDPORNodes()
 {
+    // 3-30-2016 : First try to get the master database from another neural network node if these conditions occur:
+    // The foreign node is fully synced.  The foreign nodes quorum hash matches the supermajority hash.  My hash != supermajority hash.
+    double dCurrentPopularity = 0;
+    std::string sCurrentNeuralSupermajorityHash = GetCurrentNeuralNetworkSupermajorityHash(dCurrentPopularity);
+    std::string sMyNeuralHash = NN::GetNeuralHash();
+
     if(!NN::IsEnabled())
-        return false;
-                // 3-30-2016 : First try to get the master database from another neural network node if these conditions occur:
-                // The foreign node is fully synced.  The foreign nodes quorum hash matches the supermajority hash.  My hash != supermajority hash.
-                double dCurrentPopularity = 0;
-                std::string sCurrentNeuralSupermajorityHash = GetCurrentNeuralNetworkSupermajorityHash(dCurrentPopularity);
-                std::string sMyNeuralHash = "";
-    sMyNeuralHash = NN::GetNeuralHash();
-                if (!sMyNeuralHash.empty() && !sCurrentNeuralSupermajorityHash.empty() && sMyNeuralHash != sCurrentNeuralSupermajorityHash)
-                {
-                    bool bNodeOnline = RequestSupermajorityNeuralData();
-                    if (bNodeOnline) return false;  // Async call to another node will continue after the node responds.
-                }
-                std::string errors1;
-                LoadAdminMessages(false,errors1);
+    {
+        // We are a passive NN-node with a different hash than the current majority.
+        // Request the hash from them so we can include it when we stake.
+        if(sMyNeuralHash.empty() || sMyNeuralHash != sCurrentNeuralSupermajorityHash)
+            return RequestSupermajorityNeuralData();
+        else
+            return true;
+    }
+
+    if (!sMyNeuralHash.empty() && !sCurrentNeuralSupermajorityHash.empty() && sMyNeuralHash != sCurrentNeuralSupermajorityHash)
+    {
+        bool bNodeOnline = RequestSupermajorityNeuralData();
+        if (bNodeOnline) return false;  // Async call to another node will continue after the node responds.
+    }
+    std::string errors1;
+    LoadAdminMessages(false,errors1);
 
     const int64_t iEndTime= (GetAdjustedTime()-CONSENSUS_LOOKBACK) - ( (GetAdjustedTime()-CONSENSUS_LOOKBACK) % BLOCK_GRANULARITY);
     const int64_t nLookback = 30 * 6 * 86400;
@@ -5868,11 +5876,13 @@ StructCPID GetInitializedStructCPID2(const std::string& name, std::map<std::stri
 
 bool ComputeNeuralNetworkSupermajorityHashes()
 {
-    if (nBestHeight < 15)  return true;
+    if (nBestHeight < 15)
+        return true;
+
     //Clear the neural network hash buffer
-    if (mvNeuralNetworkHash.size() > 0)  mvNeuralNetworkHash.clear();
-    if (mvNeuralVersion.size() > 0)  mvNeuralVersion.clear();
-    if (mvCurrentNeuralNetworkHash.size() > 0) mvCurrentNeuralNetworkHash.clear();
+    mvNeuralNetworkHash.clear();
+    mvNeuralVersion.clear();
+    mvCurrentNeuralNetworkHash.clear();
 
     //Clear the votes
     /* ClearCache was no-op in previous version due to bug. Now it was fixed,
@@ -5926,12 +5936,8 @@ bool ComputeNeuralNetworkSupermajorityHashes()
     {
             LogPrintf("Neural Error while memorizing hashes.\n");
     }
-    catch(...)
-    {
-        LogPrintf("Neural error While Memorizing Hashes! [1]\n");
-    }
-    return true;
 
+    return true;
 }
 
 bool TallyResearchAverages(CBlockIndex* index)
@@ -7245,20 +7251,40 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
     }
     else if (strCommand == "ndata_nresp")
     {
-            std::string neural_contract = "";
-            vRecv >> neural_contract;
-            if (fDebug3 && neural_contract.length() > 100) LogPrintf("Quorum contract received %s",neural_contract.substr(0,80));
+        std::string neural_contract;
+        vRecv >> neural_contract;
+        if (fDebug3 && neural_contract.length() > 100) LogPrintf("Quorum contract received %s",neural_contract.substr(0,80));
+
+        if(NN::IsEnabled())
+        {
             if (neural_contract.length() > 10)
             {
-                 std::string results = "";
-                 //Resolve discrepancies
+                std::string results = "";
+                //Resolve discrepancies
                 NN::SetTestnetFlag(fTestNet);
-                    LogPrintf("\n** Sync neural network data from supermajority **\n");
+                LogPrintf("\n** Sync neural network data from supermajority **\n");
                 results = NN::ExecuteDotNetStringFunction("ResolveCurrentDiscrepancies",neural_contract);
-                 if (fDebug && !results.empty()) LogPrintf("Quorum Resolution: %s \n",results);
-                 // Resume the full DPOR sync at this point now that we have the supermajority data
-                 if (results=="SUCCESS")  FullSyncWithDPORNodes();
+                if (fDebug && !results.empty()) LogPrintf("Quorum Resolution: %s \n",results);
+                // Resume the full DPOR sync at this point now that we have the supermajority data
+                if (results=="SUCCESS")  FullSyncWithDPORNodes();
             }
+        }
+        else
+        {
+            // Try to use this neural response if we are a passive node and it
+            // is the base for the supermajority contract.
+            const std::string& hash = GetQuorumHash(neural_contract);
+            double popularity = 0;
+            const std::string& majority_hash = GetNeuralNetworkSupermajorityHash(popularity);
+            if(hash != NN::GetNeuralHash() &&
+               hash == majority_hash)
+            {
+                LogPrintf("Received updated neural contract with hash %s", hash.c_str());
+                NN::SetNeuralContract(neural_contract, hash);
+            }
+            else
+                LogPrintf("Got contract with hash mismatch: %s vs majority %s", hash.c_str(), majority_hash);
+        }
     }
     else if (strCommand == "alert")
     {

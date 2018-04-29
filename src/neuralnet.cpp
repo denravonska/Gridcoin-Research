@@ -49,6 +49,11 @@ namespace NN
         return qtGetNeuralContract("");
     }
 
+    void SetNeuralContract(const std::string &contract, const std::string& hash)
+    {
+        // Ignore contracts on active nodes.
+    }
+
     bool SetTestnetFlag(bool onTestnet)
     {
         return qtExecuteGenericFunction("SetTestNetFlag", onTestnet ? "TESTNET" : "MAINNET") != 0;

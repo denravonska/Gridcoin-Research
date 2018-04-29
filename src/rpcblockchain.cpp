@@ -1757,7 +1757,6 @@ Value mymagnitude(const Array& params, bool fHelp)
     return results;
 }
 
-#ifdef WIN32
 Value myneuralhash(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() != 0)
@@ -1792,7 +1791,6 @@ Value neuralhash(const Array& params, bool fHelp)
 
     return res;
 }
-#endif
 
 Value neuralreport(const Array& params, bool fHelp)
 {

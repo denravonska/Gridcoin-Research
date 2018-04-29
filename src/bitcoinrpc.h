@@ -228,10 +228,8 @@ extern json_spirit::Value getmininginfo(const json_spirit::Array& params, bool f
 extern json_spirit::Value lifetime(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value magnitude(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value mymagnitude(const json_spirit::Array& params, bool fHelp);
-#ifdef WIN32
 extern json_spirit::Value myneuralhash(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value neuralhash(const json_spirit::Array& params, bool fHelp);
-#endif
 extern json_spirit::Value neuralreport(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value proveownership(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value resetcpids(const json_spirit::Array& params, bool fHelp);

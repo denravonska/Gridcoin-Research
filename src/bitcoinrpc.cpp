@@ -339,10 +339,8 @@ static const CRPCCommand vRPCCommands[] =
     { "lifetime",                &lifetime,                false,  cat_mining        },
     { "magnitude",               &magnitude,               false,  cat_mining        },
     { "mymagnitude",             &mymagnitude,             false,  cat_mining        },
-#ifdef WIN32
     { "myneuralhash",            &myneuralhash,            false,  cat_mining        },
     { "neuralhash",              &neuralhash,              false,  cat_mining        },
-#endif
     { "proveownership",          &proveownership,          false,  cat_mining        },
     { "resetcpids",              &resetcpids,              false,  cat_mining        },
     { "rsa",                     &rsa,                     false,  cat_mining        },

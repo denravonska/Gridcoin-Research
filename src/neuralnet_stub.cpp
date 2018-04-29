@@ -3,6 +3,9 @@
 #include "neuralnet.h"
 namespace NN
 {
+    std::string neural_contract;
+    std::string neural_hash;
+
     bool IsEnabled()
     {
         return false;
@@ -15,12 +18,18 @@ namespace NN
 
     std::string GetNeuralHash()
     {
-        return std::string();
+        return neural_hash;
     }
 
     std::string GetNeuralContract()
     {
         return std::string();
+    }
+
+    void SetNeuralContract(const std::string& contract, const std::string& hash)
+    {
+       neural_contract = contract;
+       neural_hash = hash;
     }
 
     bool SetTestnetFlag(bool onTestnet)
