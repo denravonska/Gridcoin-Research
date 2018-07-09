@@ -5649,7 +5649,7 @@ StructCPID GetLifetimeCPID(const std::string& cpid, const std::string& sCalledFr
     const HashSet& hashes = GetCPIDBlockHashes(cpid);
     ZeroOutResearcherTotals(cpid);
 
-
+    const uint128 cpid128(cpid);
     StructCPID stCPID = GetInitializedStructCPID2(cpid, mvResearchAge);
     for (HashSet::iterator it = hashes.begin(); it != hashes.end(); ++it)
     {
@@ -5665,7 +5665,7 @@ StructCPID GetLifetimeCPID(const std::string& cpid, const std::string& sCalledFr
         CBlockIndex* pblockindex = mapItem->second;
         if(pblockindex == NULL ||
            pblockindex->IsInMainChain() == false ||
-           pblockindex->GetCPID() != cpid)
+           pblockindex->cpid != cpid128)
             continue;
 
         // Block located and verified.
