@@ -6142,6 +6142,12 @@ bool LoadExternalBlockFile(FILE* fileIn)
 {
     int64_t nStart = GetTimeMillis();
 
+    std::ofstream time_stream("bench_time.txt");
+    std::ofstream height_stream("bench_height.txt");
+    
+    int64_t start = GetAdjustedTime();
+    int64_t next = 0;
+    
     int nLoaded = 0;
     {
         LOCK(cs_main);
@@ -6150,6 +6156,16 @@ bool LoadExternalBlockFile(FILE* fileIn)
             unsigned int nPos = 0;
             while (nPos != (unsigned int)-1 && blkdat.good() && !fRequestShutdown)
             {
+                if(GetAdjustedTime() > next)
+                {
+                    time_stream << GetAdjustedTime() - start << "," << pindexBest->nHeight << std::endl;
+                    next = GetAdjustedTime() + 10 * 60;
+                }
+                
+                if(pindexBest->nHeight % 50000 == 0)
+                    height_stream << pindexBest->nHeight << "," << GetAdjustedTime() - start << std::endl;
+                
+                
                 unsigned char pchData[65536];
                 do {
                     fseek(blkdat, nPos, SEEK_SET);
