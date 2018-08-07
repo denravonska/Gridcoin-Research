@@ -69,6 +69,7 @@ UniValue MagnitudeReport(std::string cpid);
 extern void AddCPIDBlockHash(const std::string& cpid, const uint256& blockhash);
 void RemoveCPIDBlockHash(const std::string& cpid, const uint256& blockhash);
 extern void ZeroOutResearcherTotals(std::string cpid);
+StructCPID TallyResearcherTotals(uint128 cpid, const HashSet& hashes);
 extern StructCPID GetLifetimeCPID(const std::string& cpid, const std::string& sFrom);
 extern std::string getCpuHash();
 std::string TimestampToHRDate(double dtm);
@@ -3854,8 +3855,7 @@ bool ReorganizeChain(CTxDB& txdb, unsigned &cnt_dis, unsigned &cnt_con, CBlock &
             //TODO: do something with retired tally?
         }
 
-        if(pindex->IsUserCPID()) // is this needed?
-            GetLifetimeCPID(pindex->cpid.GetHex(), "ReorganizeChain");
+        TallyResearcherTotals(pindex->cpid, HashSet{ pindex->GetBlockHash() });
     }
 
     if (fDebug && (cnt_dis>0 || cnt_con>1))
@@ -5638,23 +5638,17 @@ void RemoveCPIDBlockHash(const std::string& cpid, const uint256& blockhash)
    mvCPIDBlockHashes[cpid].erase(blockhash);
 }
 
-StructCPID GetLifetimeCPID(const std::string& cpid, const std::string& sCalledFrom)
+StructCPID TallyResearcherTotals(uint128 cpid, const HashSet& hashes)
 {
-    //Eliminates issues with reorgs, disconnects, double counting, etc..
-    if (!IsResearcher(cpid))
-        return GetInitializedStructCPID2("INVESTOR",mvResearchAge);
-
-    if (fDebug10) LogPrintf("GetLifetimeCPID.BEGIN: %s %s", sCalledFrom, cpid);
-
-    const HashSet& hashes = GetCPIDBlockHashes(cpid);
-    ZeroOutResearcherTotals(cpid);
-
-    const uint128 cpid128(cpid);
-    StructCPID stCPID = GetInitializedStructCPID2(cpid, mvResearchAge);
+    const std::string& cpid_hex = cpid.GetHex();
+    if(!IsResearcher(cpid_hex))
+        GetInitializedStructCPID2("INVESTOR", mvResearchAge);
+    
+    StructCPID stCPID = GetInitializedStructCPID2(cpid_hex, mvResearchAge);
     for (HashSet::iterator it = hashes.begin(); it != hashes.end(); ++it)
     {
         const uint256& uHash = *it;
-        if (fDebug10) LogPrintf("GetLifetimeCPID: trying %s",uHash.GetHex());
+        if (fDebug10) LogPrintf("TallyResearcherTotals: trying %s",uHash.GetHex());
 
         // Ensure that we have this block.
         auto mapItem = mapBlockIndex.find(uHash);
@@ -5666,17 +5660,17 @@ StructCPID GetLifetimeCPID(const std::string& cpid, const std::string& sCalledFr
         if(pblockindex == NULL ||
            pblockindex->IsInMainChain() == false ||
            pblockindex->IsUserCPID() == false ||
-           pblockindex->cpid != cpid128)
+           pblockindex->cpid != cpid)
             continue;
 
         // Block located and verified.
         if (fDebug10)
-            LogPrintf("GetLifetimeCPID: verified %s height= %d LastBlock= %d nResearchSubsidy= %.3f",
-            uHash.GetHex().c_str(),pblockindex->nHeight,(int)stCPID.LastBlock,pblockindex->nResearchSubsidy);
+            LogPrintf("TallyResearcherTotals: verified %s height= %d LastBlock= %d nResearchSubsidy= %.3f",
+            uHash.GetHex().c_str(),pblockindex->nHeight, stCPID.LastBlock, pblockindex->nResearchSubsidy);
         if(!pblockindex->pnext && pblockindex!=pindexBest)
-            LogPrintf("WARNING GetLifetimeCPID: index {%s %d} for cpid %s, "
-                "is not in the main chain",pblockindex->GetBlockHash().GetHex(),
-                pblockindex->nHeight,cpid);
+            LogPrintf("WARNING TallyResearcherTotals: index {%s %d} for cpid %s, "
+                "is not in the main chain", pblockindex->GetBlockHash().GetHex(),
+                pblockindex->nHeight, cpid_hex);
 
         if(pblockindex->nResearchSubsidy> 0)
         {
@@ -5699,11 +5693,25 @@ StructCPID GetLifetimeCPID(const std::string& cpid, const std::string& sCalledFr
             if (pblockindex->nTime > stCPID.HighLockTime) stCPID.HighLockTime = pblockindex->nTime;
         }
     }
+    
+    mvResearchAge[cpid_hex] = stCPID;
 
-    // Save updated CPID data holder.
-    if (fDebug10) LogPrintf("GetLifetimeCPID.END: %s set {%s %d}",cpid, stCPID.BlockHash, (int)stCPID.LastBlock);
-    mvResearchAge[cpid] = stCPID;
-    return stCPID;
+    if (fDebug10) LogPrintf("TallyResearcherTotals.END: %s set {%s %d}", cpid_hex, stCPID.BlockHash, stCPID.LastBlock);
+    return stCPID; 
+}
+
+StructCPID GetLifetimeCPID(const std::string& cpid, const std::string& sCalledFrom)
+{
+    //Eliminates issues with reorgs, disconnects, double counting, etc..
+    if (!IsResearcher(cpid))
+        return GetInitializedStructCPID2("INVESTOR",mvResearchAge);
+
+    if (fDebug10) LogPrintf("GetLifetimeCPID.BEGIN: %s %s", sCalledFrom, cpid);
+
+    ZeroOutResearcherTotals(cpid);
+    return TallyResearcherTotals(
+                uint128(cpid),
+                GetCPIDBlockHashes(cpid));
 }
 
 MiningCPID GetInitializedMiningCPID(std::string name,std::map<std::string, MiningCPID>& vRef)
