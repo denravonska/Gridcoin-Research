@@ -5382,13 +5382,13 @@ std::set<std::string> GetAlternativeBeaconKeys(const std::string& cpid)
     {
         const std::string& key = item.first;
         const std::string& value = item.second.value;
-        if(!std::equal(cpid.begin(), cpid.end(), key.begin()))
-            continue;
-
         const int64_t iAge = pindexBest != NULL
             ? pindexBest->nTime - item.second.timestamp
             : 0;
         if (iAge > iMaxSeconds)
+            continue;
+        
+        if(!std::equal(cpid.begin(), cpid.end(), key.begin()))
             continue;
 
         result.emplace(value);
