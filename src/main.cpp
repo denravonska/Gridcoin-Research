@@ -5306,13 +5306,13 @@ std::set<std::string> GetAlternativeBeaconKeys(const std::string& cpid)
     {
         const std::string& key = item.first;
         const std::string& value = item.second.value;
-        if(!std::equal(cpid.begin(), cpid.end(), key.begin()))
-            continue;
-
         const int64_t iAge = pindexBest != NULL
             ? pindexBest->nTime - item.second.timestamp
             : 0;
         if (iAge > iMaxSeconds)
+            continue;
+        
+        if(!std::equal(cpid.begin(), cpid.end(), key.begin()))
             continue;
 
         result.emplace(value);
@@ -8380,6 +8380,10 @@ double GRCMagnitudeUnit(int64_t locktime)
 
 int64_t ComputeResearchAccrual(int64_t nTime, std::string cpid, std::string operation, CBlockIndex* pindexLast, bool bVerifyingBlock, int iVerificationPhase, double& dAccrualAge, double& dMagnitudeUnit, double& AvgMagnitude)
 {
+    // If not a researcher save cpu cycles and return 0
+    if (!IsResearcher(cpid))
+        return 0;
+
     double dCurrentMagnitude = CalculatedMagnitude2(cpid, nTime, false);
     if(pindexLast->nVersion>=9)
     {
