@@ -13,6 +13,7 @@
 #include "main.h"
 #include "net.h"
 #include "wallet.h"
+#include "contract/superblock.h"
 
 using namespace std;
 using namespace boost;

@@ -13,6 +13,7 @@
 #include "beacon.h"
 #include "appcache.h"
 #include "util.h"
+#include "contract/superblock.h"
 
 #include <boost/filesystem.hpp>
 #include <iostream>

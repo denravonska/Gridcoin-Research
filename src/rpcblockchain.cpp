@@ -18,6 +18,7 @@
 #include "tally.h"
 #include "contract/polls.h"
 #include "contract/contract.h"
+#include "contract/superblock.h"
 #include "util.h"
 
 #include <iostream>
