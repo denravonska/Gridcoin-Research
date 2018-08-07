@@ -107,8 +107,6 @@ extern std::string getMacAddress();
 extern std::string FromQString(QString qs);
 extern std::string qtExecuteDotNetStringFunction(std::string function, std::string data);
 
-std::string ExtractXML(std::string XMLdata, std::string key, std::string key_end);
-
 extern std::string qtGetNeuralHash(std::string data);
 extern std::string qtGetNeuralContract(std::string data);
 

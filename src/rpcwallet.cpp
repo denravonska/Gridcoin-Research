@@ -24,7 +24,6 @@ static CCriticalSection cs_nWalletUnlockTime;
 extern void ThreadTopUpKeyPool(void* parg);
 
 double CoinToDouble(double surrogate);
-std::string ExtractXML(std::string XMLdata, std::string key, std::string key_end);
 
 extern void ThreadCleanWalletPassphrase(void* parg);
 
