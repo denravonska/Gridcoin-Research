@@ -205,10 +205,9 @@ int64_t nTransactionFee = MIN_TX_FEE;
 int64_t nReserveBalance = 0;
 int64_t nMinimumInputValue = 0;
 
-std::map<std::string, double> mvNeuralNetworkHash;
-std::map<std::string, double> mvCurrentNeuralNetworkHash;
-
-std::map<std::string, double> mvNeuralVersion;
+std::unordered_map<std::string, double> mvNeuralNetworkHash;
+std::unordered_map<std::string, double> mvCurrentNeuralNetworkHash;
+std::unordered_map<std::string, double> mvNeuralVersion;
 
 std::map<std::string, StructCPID> mvDPOR;
 std::map<std::string, StructCPID> mvDPORCopy;
@@ -8209,26 +8208,32 @@ std::string GetNeuralNetworkSupermajorityHash(double& out_popularity)
 
 std::string GetCurrentNeuralNetworkSupermajorityHash(double& out_popularity)
 {
+    // Copy to a sorted map.
+    std::map<std::string, double> sorted_hashes(
+                mvCurrentNeuralNetworkHash.begin(),
+                mvCurrentNeuralNetworkHash.end());
+    
     double highest_popularity = -1;
-    std::string neural_hash = "";
-    for(map<std::string,double>::iterator ii=mvCurrentNeuralNetworkHash.begin(); ii!=mvCurrentNeuralNetworkHash.end(); ++ii)
+    std::string neural_hash;    
+    for(auto& entry : sorted_hashes)
     {
-                double popularity = mvCurrentNeuralNetworkHash[(*ii).first];
-                // d41d8 is the hash of an empty magnitude contract - don't count it
-                if ( ((*ii).first != "d41d8cd98f00b204e9800998ecf8427e") && popularity > 0 && popularity > highest_popularity && (*ii).first != "TOTAL_VOTES")
-                {
-                    highest_popularity = popularity;
-                    neural_hash = (*ii).first;
-                }
+        auto& hash = entry.first;
+        auto& popularity = entry.second;
+
+        // d41d8 is the hash of an empty magnitude contract - don't count it
+        if(popularity > 0 &&
+           popularity > highest_popularity &&
+           hash != "TOTAL_VOTES" &&
+           hash != "d41d8cd98f00b204e9800998ecf8427e")
+        {            
+            highest_popularity = popularity;
+            neural_hash = hash;
+        }
     }
+    
     out_popularity = highest_popularity;
     return neural_hash;
 }
-
-
-
-
-
 
 std::string GetNeuralNetworkReport()
 {
@@ -8236,13 +8241,14 @@ std::string GetNeuralNetworkReport()
     std::string neural_hash = "";
     std::string report = "Neural_hash, Popularity\n";
     std::string row = "";
-    for(map<std::string,double>::iterator ii=mvNeuralNetworkHash.begin(); ii!=mvNeuralNetworkHash.end(); ++ii)
-    {
-                double popularity = mvNeuralNetworkHash[(*ii).first];
-                neural_hash = (*ii).first;
-                row = neural_hash+ "," + RoundToString(popularity,0);
-                report += row + "\n";
-    }
+    
+    // Copy to a sorted map.
+    std::map<std::string, double> sorted_hashes(
+                mvNeuralNetworkHash.begin(),
+                mvNeuralNetworkHash.end());
+    
+    for(auto& entry : sorted_hashes)
+        report += entry.first + "," + RoundToString(entry.second, 0) + "\n";
 
     return report;
 }
@@ -8253,8 +8259,6 @@ std::string GetOrgSymbolFromFeedKey(std::string feedkey)
     return Symbol;
 
 }
-
-
 
 bool MemorizeMessage(const CTransaction &tx, double dAmount, std::string sRecipient)
 {
