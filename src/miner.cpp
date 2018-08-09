@@ -707,7 +707,7 @@ void AddNeuralContractOrVote(const CBlock &blocknew, MiningCPID &bb)
         return;
     }
 
-    int pending_height = RoundFromString(ReadCache("neuralsecurity","pending").value, 0);
+    int pending_height = RoundFromString(ReadCache(Section::NEURALSECURITY, "pending").value, 0);
 
     /* Add our Neural Vote */
     bb.NeuralHash = sb_hash;
