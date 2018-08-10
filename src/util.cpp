@@ -1395,29 +1395,23 @@ string FormatFullVersion()
 
 double Round(double d, int place)
 {
+    if(d == 0)
+        return 0;
+
     const double accuracy = std::pow(10, place);
     return std::round(d * accuracy) / accuracy;
 }
 
 std::string RoundToString(double d, int place)
 {
-    std::ostringstream ss;
-    ss.imbue(std::locale::classic());
-    ss << std::fixed << std::setprecision(place) << d;
-    return ss.str();
+    char buf[256];
+    sprintf(buf, "%.*f", place, d);
+    return buf;
 }
 
 double RoundFromString(const std::string& s, int place)
 {
-    try
-    {
-        double num = boost::lexical_cast<double>(s);
-        return Round(num, place);
-    }
-    catch(const boost::bad_lexical_cast& e)
-    {
-        return 0;
-    }
+    return Round(atof(s.c_str()), place);
 }
 
 bool Contains(const std::string& data, const std::string& instring)
