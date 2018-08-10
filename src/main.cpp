@@ -3775,18 +3775,17 @@ bool ReorganizeChain(CTxDB& txdb, unsigned &cnt_dis, unsigned &cnt_con, CBlock &
             assert(pindexNew->GetBlockHash()==block.GetHash());
             assert(pindexNew->GetBlockHash()==blockNew.GetHash());
         }
-
-        uint256 hash = block.GetHash();
+        
         uint256 nBestBlockTrust;
 
-        if (fDebug) LogPrintf("ReorganizeChain: connect %s",hash.ToString());
+        if (fDebug) LogPrintf("ReorganizeChain: connect %s", pindex->GetBlockHash().ToString());
 
         if (!txdb.TxnBegin())
             return error("ReorganizeChain: TxnBegin failed");
 
         if (pindexGenesisBlock == NULL)
         {
-            if(hash != (!fTestNet ? hashGenesisBlock : hashGenesisBlockTestNet))
+            if(block.GetHash() != (!fTestNet ? hashGenesisBlock : hashGenesisBlockTestNet))
             {
                 txdb.TxnAbort();
                 return error("ReorganizeChain: genesis block hash does not match");
@@ -3800,7 +3799,7 @@ bool ReorganizeChain(CTxDB& txdb, unsigned &cnt_dis, unsigned &cnt_con, CBlock &
             if (!block.ConnectBlock(txdb, pindex, false, false))
             {
                 txdb.TxnAbort();
-                error("ReorganizeChain: ConnectBlock %s failed", hash.ToString().c_str());
+                error("ReorganizeChain: ConnectBlock %s failed", pindex->GetBlockHash().ToString().c_str());
                 LogPrintf("Previous block %s",pindex->pprev->GetBlockHash().ToString());
                 InvalidChainFound(pindex);
                 return false;
@@ -3835,7 +3834,7 @@ bool ReorganizeChain(CTxDB& txdb, unsigned &cnt_dis, unsigned &cnt_con, CBlock &
             nBestBlockTrust = pindex->nChainTrust;
 
         // update best block
-        hashBestChain = hash;
+        hashBestChain = pindex->GetBlockHash();
         pindexBest = pindex;
         blockFinder.Reset();
         nBestHeight = pindexBest->nHeight;
@@ -4025,12 +4024,13 @@ bool CBlock::AddToBlockIndex(unsigned int nFile, unsigned int nBlockPos, const u
     uint256 hash = GetHash();
     if (mapBlockIndex.count(hash))
         return error("AddToBlockIndex() : %s already exists", hash.ToString().substr(0,20).c_str());
-
+    
     // Construct new block index object
     CBlockIndex* pindexNew = new CBlockIndex(nFile, nBlockPos, *this);
     if (!pindexNew)
         return error("AddToBlockIndex() : new CBlockIndex failed");
     pindexNew->phashBlock = &hash;
+
     BlockMap::iterator miPrev = mapBlockIndex.find(hashPrevBlock);
     if (miPrev != mapBlockIndex.end())
     {
@@ -4788,6 +4788,10 @@ bool WalletOutOfSync()
     return OutOfSyncByAge() && bSyncedCloseToTop;
 }
 
+std::ofstream time_stream("bench_time.txt");
+std::ofstream height_stream("bench_height.txt");
+int64_t start = GetAdjustedTime();
+
 bool ProcessBlock(CNode* pfrom, CBlock* pblock, bool generated_by_me)
 {
     AssertLockHeld(cs_main);
@@ -4895,6 +4899,9 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock, bool generated_by_me)
     if (!pblock->AcceptBlock(generated_by_me))
         return error("ProcessBlock() : AcceptBlock FAILED");
 
+    if(pindexBest->nHeight % 50000 == 0)
+        height_stream << pindexBest->nHeight << "," << GetAdjustedTime() - start << std::endl;
+    
     // Recursively process any orphan blocks that depended on this one
     vector<uint256> vWorkQueue;
     vWorkQueue.push_back(hash);
