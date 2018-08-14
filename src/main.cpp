@@ -2342,6 +2342,8 @@ bool CheckProofOfResearch(
         const CBlockIndex* pindexPrev, //previous block in chain index
         const CBlock &block)     //block to check
 {
+    /* In this function GetProofOfStakeReward is called with wrong pindex,
+     * which does not matter, because this one is no longer used */
     if(block.vtx.size() == 0 ||
        !block.IsProofOfStake() ||
        pindexPrev->nHeight <= nGrandfather ||
@@ -2878,7 +2880,7 @@ bool LoadSuperblock(std::string data, int64_t nTime, int height)
     WriteCache(Section::SUPERBLOCK, "quotes",ExtractXML(data,"<QUOTES>","</QUOTES>"),nTime);
     WriteCache(Section::SUPERBLOCK, "all",data,nTime);
     WriteCache(Section::SUPERBLOCK, "block_number",ToString(height),nTime);
-    return true;
+        return true;
 }
 
 std::string CharToString(char c)
@@ -3775,7 +3777,7 @@ bool ReorganizeChain(CTxDB& txdb, unsigned &cnt_dis, unsigned &cnt_con, CBlock &
             assert(pindexNew->GetBlockHash()==block.GetHash());
             assert(pindexNew->GetBlockHash()==blockNew.GetHash());
         }
-        
+
         uint256 nBestBlockTrust;
 
         if (fDebug) LogPrintf("ReorganizeChain: connect %s", pindex->GetBlockHash().ToString());
@@ -4024,7 +4026,7 @@ bool CBlock::AddToBlockIndex(unsigned int nFile, unsigned int nBlockPos, const u
     uint256 hash = GetHash();
     if (mapBlockIndex.count(hash))
         return error("AddToBlockIndex() : %s already exists", hash.ToString().substr(0,20).c_str());
-    
+
     // Construct new block index object
     CBlockIndex* pindexNew = new CBlockIndex(nFile, nBlockPos, *this);
     if (!pindexNew)
@@ -7029,6 +7031,12 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             }
             else if (neural_request=="neural_hash")
             {
+            if(0==neural_request_id.compare(0,13,"supercfwd.rqa"))
+            {
+                std::string r_hash;  vRecv >> r_hash;
+                supercfwd::SendResponse(pfrom,r_hash);
+            }
+            else
             pfrom->PushMessage("hash_nresp", NN::GetNeuralHash());
             }
             else if (neural_request=="explainmag")
@@ -7041,6 +7049,11 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             // 7-12-2015 Resolve discrepencies in w nodes to speak to each other
             pfrom->PushMessage("quorum_nresp", NN::GetNeuralContract());
             }
+            else if (neural_request=="supercfwdr")
+            {
+                // this command could be done by reusing quorum_nresp, but I do not want to confuse the NN
+                supercfwd::QuorumResponseHook(pfrom,neural_request_id);
+    }
     }
     else if (strCommand == "ping")
     {
@@ -7126,6 +7139,9 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             // nNeuralNonce must match request ID
             pfrom->NeuralHash = neural_response;
             if (fDebug10) LogPrintf("hash_Neural Response %s ",neural_response);
+
+            // Hook into miner for delegated sb staking
+            supercfwd::HashResponseHook(pfrom, neural_response);
     }
     else if (strCommand == "expmag_nresp")
     {
@@ -7151,6 +7167,9 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
                 results = NN::ExecuteDotNetStringFunction("ResolveDiscrepancies",neural_contract);
                  if (fDebug && !results.empty()) LogPrintf("Quorum Resolution: %s ",results);
             }
+
+            // Hook into miner for delegated sb staking
+            supercfwd::QuorumResponseHook(pfrom,neural_contract);
     }
     else if (strCommand == "ndata_nresp")
     {
@@ -8262,103 +8281,103 @@ bool MemorizeMessage(const CTransaction &tx, double dAmount, std::string sRecipi
 {
     const std::string &msg = tx.hashBoinc;
     const int64_t &nTime = tx.nTime;
-    if (msg.empty()) return false;
-    bool fMessageLoaded = false;
-    
-    if (Contains(msg,"<MT>"))
-    {
-        std::string sMessageType      = ExtractXML(msg,"<MT>","</MT>");
-        std::string sMessageKey       = ExtractXML(msg,"<MK>","</MK>");
-        std::string sMessageValue     = ExtractXML(msg,"<MV>","</MV>");
-        std::string sMessageAction    = ExtractXML(msg,"<MA>","</MA>");
-        std::string sSignature        = ExtractXML(msg,"<MS>","</MS>");
-        std::string sMessagePublicKey = ExtractXML(msg,"<MPK>","</MPK>");
-        if (sMessageType=="beacon" && Contains(sMessageValue,"INVESTOR"))
-        {
-            sMessageValue="";
-        }
-        
-        if (sMessageType=="superblock")
-        {
-            // Deny access to superblock processing runtime data
-            sMessageValue="";
-        }
-        
-        if (!sMessageType.empty() && !sMessageKey.empty() && !sMessageValue.empty() && !sMessageAction.empty() && !sSignature.empty())
-        {
-            //Verify sig first
-            bool Verified = CheckMessageSignature(sMessageAction,sMessageType,sMessageType+sMessageKey+sMessageValue,
-                                                  sSignature,sMessagePublicKey);
-            
-            if (Verified)
-            {
-                if (sMessageAction=="A")
-                {
-                    /* With this we allow verifying blocks with stupid beacon */
-                    if("beacon"==sMessageType)
-                    {
-                        std::string out_cpid = "";
-                        std::string out_address = "";
-                        std::string out_publickey = "";
-                        GetBeaconElements(sMessageValue, out_cpid, out_address, out_publickey);
+          if (msg.empty()) return false;
+          bool fMessageLoaded = false;
+
+          if (Contains(msg,"<MT>"))
+          {
+              std::string sMessageType      = ExtractXML(msg,"<MT>","</MT>");
+              std::string sMessageKey       = ExtractXML(msg,"<MK>","</MK>");
+              std::string sMessageValue     = ExtractXML(msg,"<MV>","</MV>");
+              std::string sMessageAction    = ExtractXML(msg,"<MA>","</MA>");
+              std::string sSignature        = ExtractXML(msg,"<MS>","</MS>");
+              std::string sMessagePublicKey = ExtractXML(msg,"<MPK>","</MPK>");
+              if (sMessageType=="beacon" && Contains(sMessageValue,"INVESTOR"))
+              {
+                    sMessageValue="";
+              }
+
+              if (sMessageType=="superblock")
+              {
+                  // Deny access to superblock processing runtime data
+                  sMessageValue="";
+              }
+
+              if (!sMessageType.empty() && !sMessageKey.empty() && !sMessageValue.empty() && !sMessageAction.empty() && !sSignature.empty())
+              {
+                  //Verify sig first
+                  bool Verified = CheckMessageSignature(sMessageAction,sMessageType,sMessageType+sMessageKey+sMessageValue,
+                      sSignature,sMessagePublicKey);
+
+                  if (Verified)
+                  {
+                        if (sMessageAction=="A")
+                        {
+                                /* With this we allow verifying blocks with stupid beacon */
+                                if("beacon"==sMessageType)
+                                {
+                                    std::string out_cpid = "";
+                                    std::string out_address = "";
+                                    std::string out_publickey = "";
+                                    GetBeaconElements(sMessageValue, out_cpid, out_address, out_publickey);
                         WriteCache(Section::BEACONALT, sMessageKey+"."+ToString(nTime),out_publickey,nTime);
-                    }
-                    
+                                }
+
                     try
                     {
                     WriteCache(StringToSection(sMessageType), sMessageKey,sMessageValue,nTime);
                         if(fDebug10 && sMessageType=="beacon" )
-                        LogPrintf("BEACON add %s %s %s", sMessageKey, DecodeBase64(sMessageValue), TimestampToHRDate(nTime));
-                    }
+                                    LogPrintf("BEACON add %s %s %s", sMessageKey, DecodeBase64(sMessageValue), TimestampToHRDate(nTime));
+                                }
                     catch(const std::runtime_error& e)
                     {
                         error("Attempting to add to unknown cache: %s", sMessageType);
                     }
 
-                    fMessageLoaded = true;
-                    if (sMessageType=="poll")
-                    {
-                        if (Contains(sMessageKey,"[Foundation"))
-                        {
-                            msPoll = "Foundation Poll: " + sMessageKey.substr(0,80);
+                                fMessageLoaded = true;
+                                if (sMessageType=="poll")
+                                {
+                                        if (Contains(sMessageKey,"[Foundation"))
+                                        {
+                                                msPoll = "Foundation Poll: " + sMessageKey.substr(0,80);
+                                        }
+                                        else
+                                        {
+                                                msPoll = "Poll: " + sMessageKey.substr(0,80);
+                                        }
+                                }
                         }
-                        else
+                        else if(sMessageAction=="D")
                         {
-                            msPoll = "Poll: " + sMessageKey.substr(0,80);
-                        }
-                    }
-                }
-                else if(sMessageAction=="D")
-                {
-                    if (fDebug10) LogPrintf("Deleting key type %s Key %s Value %s", sMessageType, sMessageKey, sMessageValue);
-                    if(fDebug10 && sMessageType=="beacon" ){
-                        LogPrintf("BEACON DEL %s - %s", sMessageKey, TimestampToHRDate(nTime));
-                    }
+                                if (fDebug10) LogPrintf("Deleting key type %s Key %s Value %s", sMessageType, sMessageKey, sMessageValue);
+                                if(fDebug10 && sMessageType=="beacon" ){
+                                    LogPrintf("BEACON DEL %s - %s", sMessageKey, TimestampToHRDate(nTime));
+                                }
                     
                     try
                     {                    
                     DeleteCache(StringToSection(sMessageType), sMessageKey);
-                    fMessageLoaded = true;
-                }
+                                fMessageLoaded = true;
+                        }
                     catch(const std::runtime_error& e)
                     {
                         error("Attempting to add to unknown cache: %s", sMessageType);
                     }
                 }
-                // If this is a boinc project, load the projects into the coin:
-                if (sMessageType=="project" || sMessageType=="projectmapping")
-                {
-                    //Reserved
-                    fMessageLoaded = true;
-                }
-                
-                if(fDebug)
+                        // If this is a boinc project, load the projects into the coin:
+                        if (sMessageType=="project" || sMessageType=="projectmapping")
+                        {
+                            //Reserved
+                            fMessageLoaded = true;
+                        }
+
+                        if(fDebug)
                     WriteCache(Section::TRXID, sMessageType + ";" + sMessageKey,tx.GetHash().GetHex(),nTime);
             }
-        }
-    }
-    
-    return fMessageLoaded;
+                  }
+                }
+
+   return fMessageLoaded;
 }
 
 double GRCMagnitudeUnit(int64_t locktime)
@@ -8478,6 +8497,8 @@ int64_t ComputeResearchAccrual(int64_t nTime, std::string cpid, std::string oper
     {
         if(fDebug) LogPrintf("ComputeResearchAccrual: %s Block Span less than 10 (%d) -> Accrual 0 (would be %f)", cpid, iRABlockSpan, Accrual/(double)COIN);
         if(fDebug2) LogPrintf(" pHistorical w %s", pHistorical->GetBlockHash().GetHex());
+
+        // Note that if the RA Block Span < 10, we want to return 0 for the Accrual Amount so the CPID can still receive an accurate accrual in the future
         return 0;
     }
 
@@ -8549,21 +8570,20 @@ void ZeroOutResearcherTotals(std::string cpid)
 
 bool LoadAdminMessages(bool bFullTableScan, std::string& out_errors)
 {
-    int nMaxDepth = nBestHeight;
-    int nMinDepth = fTestNet ? 1 : 164618;
-    nMinDepth = pindexBest->nHeight - (BLOCKS_PER_DAY*30*12);
-    if (nMinDepth < 2) nMinDepth=2;
-    if (!bFullTableScan) nMinDepth = nMaxDepth-6;
-    if (nMaxDepth < nMinDepth) return false;
-    CBlockIndex* pindex = blockFinder.FindByHeight(nMinDepth);
-    // These are memorized consecutively in order from oldest to newest
+    // Find starting block. On full table scan we want to scan 6 months back.
+    // On a shallow scan we can limit to 6 blocks back.
+    CBlockIndex* pindex = bFullTableScan
+            ? blockFinder.FindByTime(pindexBest->nTime - MaxBeaconAge())
+            : blockFinder.FindByHeight(pindexBest->nHeight - 6);
 
-    while (pindex->nHeight < nMaxDepth)
+    if(pindex->nHeight < (fTestNet ? 1 : 164618))
+       return true;
+
+    // These are memorized consecutively in order from oldest to newest
+    for(; pindex && pindex->pnext; pindex = pindex->pnext)
     {
-        if (!pindex || !pindex->pnext) return false;
-        pindex = pindex->pnext;
-        if (pindex==NULL) continue;
-        if (!pindex || !pindex->IsInMainChain()) continue;
+        if (!pindex->IsInMainChain())
+            continue;
         if (IsContract(pindex))
         {
             CBlock block;
