@@ -5799,34 +5799,20 @@ MiningCPID GetInitializedMiningCPID(std::string name,std::map<std::string, Minin
 
 StructCPID GetInitializedStructCPID2(const std::string& name, std::map<std::string, StructCPID>& vRef)
 {
-    try
+    StructCPID& cpid = vRef[name];
+    if (!cpid.initialized)
     {
-        StructCPID& cpid = vRef[name];
-        if (!cpid.initialized)
-        {
-            cpid = GetStructCPID();
-            cpid.cpid = name;
-            cpid.initialized=true;
-            cpid.LowLockTime = std::numeric_limits<unsigned int>::max();
-            cpid.HighLockTime = 0;
-            cpid.LastPaymentTime = 0;
-            cpid.EarliestPaymentTime = 99999999999;
-            cpid.Accuracy = 0;
-        }
-
-        return cpid;
+        cpid = GetStructCPID();
+        cpid.cpid = name;
+        cpid.initialized=true;
+        cpid.LowLockTime = std::numeric_limits<unsigned int>::max();
+        cpid.HighLockTime = 0;
+        cpid.LastPaymentTime = 0;
+        cpid.EarliestPaymentTime = 99999999999;
+        cpid.Accuracy = 0;
     }
-    catch (const std::bad_alloc& ba)
-    {
-        LogPrintf("Bad alloc caught in GetInitializedStructCpid2 for %s", name);
-    }
-    catch(...)
-    {
-        LogPrintf("Exception caught in GetInitializedStructCpid2 for %s", name);
-    }
-
-    // Error during map's heap allocation. Return an empty object.
-    return GetStructCPID();
+    
+    return cpid;
 }
 
 
