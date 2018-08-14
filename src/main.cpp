@@ -290,7 +290,6 @@ std::map<std::string, StructCPID> mvNetwork;      //Contains the project stats a
 std::map<std::string, StructCPID> mvNetworkCopy;      //Contains the project stats at the network level
 std::map<std::string, StructCPID> mvCreditNodeCPID;        // Contains verified CPID Magnitudes;
 std::map<std::string, StructCPID> mvMagnitudes; // Contains Magnitudes by CPID & Outstanding Payments Owed per CPID
-std::map<std::string, StructCPID> mvMagnitudesCopy; // Contains Magnitudes by CPID & Outstanding Payments Owed per CPID
 
 std::map<std::string, int> mvTimers; // Contains event timers that reset after max ms duration iterator is exceeded
 
@@ -5574,9 +5573,7 @@ void AddResearchMagnitude(CBlockIndex* pIndex)
     //  - CBlock::ConnectBlock in main.cpp.
     //
     // This function should be the only one and the other two uses should
-    // call it to update the data. At the same time, remove mvMagnitudesCopy
-    // (and the other struct copies) as they are no longer used in a multi
-    // threaded environment when the the tally thread is gone.
+    // call it to update the data.
 
 
     if (pIndex->IsUserCPID() == false || pIndex->nResearchSubsidy <= 0)
@@ -5585,7 +5582,7 @@ void AddResearchMagnitude(CBlockIndex* pIndex)
     try
     {
         const std::string& cpid = pIndex->GetCPID();
-        StructCPID stMag = GetInitializedStructCPID2(cpid, mvMagnitudesCopy);
+        StructCPID stMag = GetInitializedStructCPID2(cpid, mvMagnitudes);
         stMag.InterestSubsidy += pIndex->nInterestSubsidy;
         stMag.ResearchSubsidy += pIndex->nResearchSubsidy;
         if (pIndex->nHeight > stMag.LastBlock)
@@ -5618,7 +5615,7 @@ void AddResearchMagnitude(CBlockIndex* pIndex)
         stMag.owed = GetOutstandingAmountOwed(stMag, cpid, pIndex->nTime, total_owed, pIndex->nMagnitude);
 
         stMag.totalowed = total_owed;
-        mvMagnitudesCopy[cpid] = stMag;
+        mvMagnitudes[cpid] = stMag;
     }
     catch (const std::bad_alloc& ba)
     {
@@ -5929,7 +5926,7 @@ bool TallyResearchAverages_retired(CBlockIndex* index)
     if (fDebug3) LogPrintf("START BLOCK %d, END BLOCK %d", nMaxDepth, nMinDepth);
     if (nMinDepth < 2)              nMinDepth = 2;
     if(fDebug) LogPrintf("TallyResearchAverages_retired: beginning start %d end %d",nMaxDepth,nMinDepth);
-    mvMagnitudesCopy.clear();
+    mvMagnitudes.clear();
     int iRow = 0;
 
     CBlockIndex* pblockindex = index;
@@ -5946,6 +5943,8 @@ bool TallyResearchAverages_retired(CBlockIndex* index)
     // Headless critical section ()
     try
     {
+        mvMagnitudes.clear();
+        
         while (pblockindex->nHeight > nMinDepth)
         {
             if (!pblockindex || !pblockindex->pprev) return false;
@@ -5993,7 +5992,6 @@ bool TallyResearchAverages_retired(CBlockIndex* index)
         }
         // 11-19-2015 Copy dictionaries to live RAM
         mvDPOR = mvDPORCopy;
-        mvMagnitudes = mvMagnitudesCopy;
         mvNetwork = mvNetworkCopy;
         bNetAveragesLoaded = true;
         return true;
@@ -6042,7 +6040,7 @@ bool TallyResearchAverages_v9(CBlockIndex* index)
 
     if(fDebug) LogPrintf("TallyResearchAverages: start %d end %d",nMaxDepth,nMinDepth);
 
-    mvMagnitudesCopy.clear();
+    mvMagnitudes.clear();
     CBlockIndex* pblockindex = index;
     if (!pblockindex)
     {
@@ -6082,9 +6080,9 @@ bool TallyResearchAverages_v9(CBlockIndex* index)
         break;
     }
 
-    // Headless critical section ()
+    // Headless critical section ()    
     try
-    {
+    {        
         while (pblockindex->nHeight > nMinDepth)
         {
             if (!pblockindex || !pblockindex->pprev) return false;
@@ -6112,7 +6110,6 @@ bool TallyResearchAverages_v9(CBlockIndex* index)
         }
         // 11-19-2015 Copy dictionaries to live RAM
         mvDPOR = mvDPORCopy;
-        mvMagnitudes = mvMagnitudesCopy;
         mvNetwork = mvNetworkCopy;
         bNetAveragesLoaded = true;
         return true;

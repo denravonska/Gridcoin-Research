@@ -676,7 +676,7 @@ bool TallyMagnitudesInSuperblock()
                     stCPID.Magnitude = magnitude;
                     stCPID.cpid = cpid;
                     mvDPORCopy[cpid]=stCPID;
-                    StructCPID stMagg = GetInitializedStructCPID2(cpid,mvMagnitudesCopy);
+                    StructCPID stMagg = GetInitializedStructCPID2(cpid,mvMagnitudes);
                     stMagg.cpid = cpid;
                     stMagg.Magnitude = stCPID.Magnitude;
                     stMagg.PaymentMagnitude = LederstrumpfMagnitude2(magnitude,GetAdjustedTime());
@@ -688,7 +688,7 @@ bool TallyMagnitudesInSuperblock()
                         stMagg.totalowed = total_owed;
                     }
 
-                    mvMagnitudesCopy[cpid] = stMagg;
+                    mvMagnitudes[cpid] = stMagg;
                     TotalNetworkMagnitude += stMagg.Magnitude;
                     TotalNetworkEntries++;
 
