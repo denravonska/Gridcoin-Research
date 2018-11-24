@@ -25,6 +25,7 @@ using namespace boost;
 
 leveldb::DB *txdb; // global pointer for LevelDB object instance
 void AddCPIDBlockHash(const std::string& cpid, const uint256& blockhash);
+MiningCPID GetBoincBlockByIndex(CBlockIndex* pblockindex);
 
 static leveldb::Options GetOptions() {
     leveldb::Options options;
@@ -635,6 +636,20 @@ bool CTxDB::LoadBlockIndex()
                     if (nHighest < nGrandfather) nHighest=nGrandfather;
                     std::string sBlocksLoaded = ToString(nLoaded) + "/" + ToString(nHighest) + " POR Blocks Verified";
                     uiInterface.InitMessage(_(sBlocksLoaded.c_str()));
+                }
+            }            
+
+            // Fix for an old bug which stored CPIDs as 0x00.
+            if(pindex->IsUserCPID() && pindex->cpid == uint128())
+            {
+                const MiningCPID& cpid = GetBoincBlockByIndex(pindex);
+                if(cpid.initialized)
+                {
+                    pindex->SetCPID(cpid.cpid);
+                    LogPrintf("Repaired block %s with CPID %s", pindex->GetBlockHash().GetHex(), cpid.cpid);
+
+                    if(!WriteBlockIndex(CDiskBlockIndex(pindex)))
+                        LogPrintf("Error writing block to disk");
                 }
             }
 
