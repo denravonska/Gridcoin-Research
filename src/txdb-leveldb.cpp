@@ -653,7 +653,7 @@ bool CTxDB::LoadBlockIndex()
                 }
             }
 
-            if (pindex->nResearchSubsidy > 0 && pindex->IsUserCPID())
+            if (IsResearchAgeEnabled(pindex->nHeight) && pindex->nResearchSubsidy > 0 && pindex->IsUserCPID())
             {
                 const std::string& scpid = pindex->GetCPID();
                 StructCPID stCPID = GetInitializedStructCPID2(scpid, mvResearchAge);
