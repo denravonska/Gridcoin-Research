@@ -653,9 +653,9 @@ bool CTxDB::LoadBlockIndex()
                 }
             }
 
+            const std::string& scpid = pindex->GetCPID();
             if (IsResearchAgeEnabled(pindex->nHeight) && pindex->nResearchSubsidy > 0 && pindex->IsUserCPID())
-            {
-                const std::string& scpid = pindex->GetCPID();
+            {                
                 StructCPID stCPID = GetInitializedStructCPID2(scpid, mvResearchAge);
 
                 stCPID.InterestSubsidy += pindex->nInterestSubsidy;
@@ -677,9 +677,10 @@ bool CTxDB::LoadBlockIndex()
                 if (pindex->nTime > stCPID.HighLockTime) stCPID.HighLockTime = pindex->nTime;
 
                 // Store the updated struct.
-                mvResearchAge[scpid] = stCPID;
-                AddCPIDBlockHash(scpid, pindex->GetBlockHash());
+                mvResearchAge[scpid] = stCPID;                
             }
+
+            AddCPIDBlockHash(scpid, pindex->GetBlockHash());
         }
     }
 
