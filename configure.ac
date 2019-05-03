@@ -258,13 +258,23 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
     #include <intrin.h>
     #elif defined(__GNUC__) && defined(__SSE4_2__)
     #include <nmmintrin.h>
+    #elif defined(__aarch32__) || defined (__aarch64__)
+    #include <arm_acle.h>
     #endif
   ]],[[
+    #if defined(__aarch32__) || defined (__aarch64__)
+    uint64_t l = 0;
+    l = __crc32b(l, 0);
+    l = __crc32w(l, 0);
+    l = __crc32d(l, 0);
+    return l;
+    #else
     uint64_t l = 0;
     l = _mm_crc32_u8(l, 0);
     l = _mm_crc32_u32(l, 0);
     l = _mm_crc32_u64(l, 0);
     return l;
+    #endif
   ]])],
  [ AC_MSG_RESULT(yes); enable_hwcrc32=yes],
  [ AC_MSG_RESULT(no)]
