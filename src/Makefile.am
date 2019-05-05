@@ -166,6 +166,9 @@ GRIDCOIN_CORE_CPP = addrman.cpp \
 	scraper/scraper.cpp \
 	script.cpp \
 	scrypt.cpp \
+	scrypt-arm.S \
+	scrypt-x86_64.S \
+	scrypt-x86.S \
 	sync.cpp \
 	tally.cpp \
 	txdb-leveldb.cpp \
