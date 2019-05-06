@@ -29,6 +29,11 @@ namespace sha256d64_avx2
 void Transform_8way(unsigned char* out, const unsigned char* in);
 }
 
+namespace sha256_arm
+{
+void Transform(uint32_t* s, const unsigned char* chunk, size_t blocks);
+}
+
 // Internal implementation code.
 namespace
 {
@@ -584,6 +589,10 @@ std::string SHA256AutoDetect()
     }
 #endif
 
+#if defined(USE_ASM) && defined(__arm__) && defined(__APCS_32__)
+    ret = "ARM SHA2 extensions";
+    Transform = sha256_arm::Transform;
+#endif
     assert(SelfTest());
     return ret;
 }

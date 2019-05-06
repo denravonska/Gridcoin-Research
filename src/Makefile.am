@@ -221,7 +221,10 @@ crypto_libgridcoin_crypto_base_a_SOURCES = \
   crypto/sha256.cpp \
   crypto/sha256.h \
   crypto/sha512.cpp \
-  crypto/sha512.h
+  crypto/sha512.h \
+  crypto/sha256_neon.S \
+  crypto/sha256-armv8-aarch64.S \
+  crypto/sha256_arm.cpp
 
 if USE_ASM
 crypto_libgridcoin_crypto_base_a_SOURCES += crypto/sha256_sse4.cpp
